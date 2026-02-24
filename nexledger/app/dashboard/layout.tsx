@@ -18,28 +18,13 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname()
 
-  const navItems = [
-    {
-      name: "Inventory",
-      href: "/dashboard",
-      icon: Package
-    },
-    {
-      name: "Sales",
-      href: "/dashboard/sales",
-      icon: ShoppingCart
-    },
-    {
-      name: "Ledger",
-      href: "/dashboard/ledger",
-      icon: BookOpen
-    },
-    {
-      name: "Purchase",
-      href: "/dashboard/purchase",
-      icon: Package
-    }
-  ]
+const navItems = [
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Products", href: "/dashboard/products", icon: Package },
+  { name: "Purchase", href: "/dashboard/purchase", icon: ShoppingCart },
+  { name: "Sales", href: "/dashboard/sales", icon: ShoppingCart },
+  { name: "Ledger", href: "/dashboard/ledger", icon: BookOpen }
+]
 
   const userName = "Admin User"
 

@@ -16,11 +16,13 @@ interface Item {
 export default function DashboardPage() {
   const [items, setItems] = useState<Item[]>([])
 
-  useEffect(() => {
-    fetch("/api/inventory/items")
-      .then(res => res.json())
-      .then(setItems)
-  }, [])
+useEffect(() => {
+  fetch("/api/inventory/items")
+    .then(res => res.json())
+    .then(data => {
+      setItems(data.products)   // 👈 IMPORTANT FIX
+    })
+}, [])
 
   return (
     <div className="max-w-6xl mx-auto space-y-10">

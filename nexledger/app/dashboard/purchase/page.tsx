@@ -23,8 +23,10 @@ export default function PurchasePage() {
 
   useEffect(() => {
     fetch("/api/inventory/items")
-      .then(res => res.json())
-      .then(setItems)
+    .then(res => res.json())
+    .then(data => {
+      setItems(data.products)   // 👈 THIS IS THE FIX
+  })
 
     fetch("/api/inventory/suppliers")
       .then(res => res.json())
