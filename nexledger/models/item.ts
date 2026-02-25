@@ -23,7 +23,7 @@ const ItemSchema = new Schema<ItemDocument>(
 
     sku: { type: String, required: true, unique: true },
 
-    barcode: { type: String },
+    barcode: { type: String, unique: true, sparse: true },
 
     category: { type: String, required: true },
 
