@@ -1,59 +1,66 @@
 import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import Item from "@/models/item"
-import PurchaseInvoice from "@/models/purchaseInvoice"
-import mongoose from "mongoose"
+import Purchase from "@/models/purchase"
 
 export async function POST(req: NextRequest) {
   try {
     await dbConnect()
 
-    const { supplierId, invoiceNumber, items } = await req.json()
+    const body = await req.json()
 
-    if (!supplierId || !invoiceNumber || !items?.length) {
+    const productId = body.productId
+    const quantity = Number(body.quantity)
+    const purchasePrice = Number(body.purchasePrice)
+    const supplierName = body.supplierName?.trim()
+
+    // Basic validation
+    if (!productId || quantity == null || purchasePrice == null) {
       return NextResponse.json(
-        { error: "Invalid purchase data" },
+        { error: "Required fields missing" },
         { status: 400 }
       )
     }
 
-    let totalAmount = 0
-
-    for (const entry of items) {
-      if (!mongoose.Types.ObjectId.isValid(entry.itemId)) {
-        return NextResponse.json(
-          { error: "Invalid itemId" },
-          { status: 400 }
-        )
-      }
-
-      const item = await Item.findById(entry.itemId)
-      if (!item) {
-        return NextResponse.json(
-          { error: "Item not found" },
-          { status: 404 }
-        )
-      }
-
-      // Increase stock
-      await Item.findByIdAndUpdate(entry.itemId, {
-        $inc: { stockQuantity: entry.quantity }
-      })
-
-      totalAmount += entry.quantity * entry.costPrice
+    if (quantity <= 0 || purchasePrice <= 0) {
+      return NextResponse.json(
+        { error: "Invalid quantity or price" },
+        { status: 400 }
+      )
     }
 
-    const invoice = await PurchaseInvoice.create({
-      supplierId,
-      invoiceNumber,
-      items,
-      totalAmount
+    // Check product exists
+    const product = await Item.findById(productId)
+    if (!product) {
+      return NextResponse.json(
+        { error: "Product not found" },
+        { status: 404 }
+      )
+    }
+
+    // Atomic stock increment
+    await Item.findByIdAndUpdate(
+      productId,
+      { $inc: { stockQuantity: quantity } }
+    )
+
+    const totalAmount = quantity * purchasePrice
+
+    // Save purchase record
+    const purchase = await Purchase.create({
+      productId,
+      quantity,
+      purchasePrice,
+      totalAmount,
+      supplierName
     })
 
-    return NextResponse.json(invoice, { status: 201 })
+    return NextResponse.json(purchase, { status: 201 })
+
   } catch (err: any) {
+    console.error("PURCHASE ERROR:", err)
     return NextResponse.json(
-      { error: err.message ?? "Internal Server Error" },
+      { error: err.message || "Server error" },
       { status: 500 }
     )
   }

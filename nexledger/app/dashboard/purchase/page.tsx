@@ -7,133 +7,118 @@ interface Item {
   name: string
 }
 
-interface Supplier {
-  _id: string
-  name: string
-}
-
 export default function PurchasePage() {
   const [items, setItems] = useState<Item[]>([])
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
-  const [selectedItem, setSelectedItem] = useState("")
-  const [selectedSupplier, setSelectedSupplier] = useState("")
+  const [productId, setProductId] = useState("")
   const [quantity, setQuantity] = useState("")
-  const [costPrice, setCostPrice] = useState("")
-  const [invoiceNumber, setInvoiceNumber] = useState("")
+  const [price, setPrice] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  const total =
+    Number(quantity || 0) * Number(price || 0)
 
   useEffect(() => {
-    fetch("/api/inventory/items")
-    .then(res => res.json())
-    .then(data => {
-      setItems(data.products)   // 👈 THIS IS THE FIX
-  })
-
-    fetch("/api/inventory/suppliers")
+    fetch("/api/inventory/items?page=1")
       .then(res => res.json())
-      .then(setSuppliers)
+      .then(data => setItems(data.products || []))
   }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault()
+
+    setLoading(true)
 
     const res = await fetch("/api/inventory/purchase", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        supplierId: selectedSupplier,
-        invoiceNumber,
-        items: [
-          {
-            itemId: selectedItem,
-            quantity: Number(quantity),
-            costPrice: Number(costPrice)
-          }
-        ]
+        productId,
+        quantity: Number(quantity),
+        purchasePrice: Number(price)
       })
     })
 
+    const data = await res.json()
+
     if (res.ok) {
-      alert("Purchase Invoice Created ✅")
+      alert("Stock Updated Successfully ✅")
+      setProductId("")
       setQuantity("")
-      setCostPrice("")
-      setInvoiceNumber("")
+      setPrice("")
     } else {
-      alert("Error creating invoice")
+      alert(data.error || "Error updating stock")
     }
+
+    setLoading(false)
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <h2 className="text-2xl font-semibold text-gray-800">
-        Create Purchase Invoice
+    <div className="max-w-xl mx-auto space-y-8">
+
+      <h2 className="text-2xl font-semibold">
+        Purchase Entry
       </h2>
 
       <div className="bg-white p-6 rounded-xl shadow-md">
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          <input
-            type="text"
-            placeholder="Invoice Number"
-            className="w-full border rounded-lg p-2"
-            value={invoiceNumber}
-            onChange={e => setInvoiceNumber(e.target.value)}
-            required
-          />
-
+          {/* Product Select */}
           <select
-            className="w-full border rounded-lg p-2"
-            value={selectedSupplier}
-            onChange={e => setSelectedSupplier(e.target.value)}
+            className="border rounded-lg p-2 w-full"
+            value={productId}
+            onChange={(e) => setProductId(e.target.value)}
             required
           >
-            <option value="">Select Supplier</option>
-            {suppliers.map(s => (
-              <option key={s._id} value={s._id}>
-                {s.name}
+            <option value="">Select Product</option>
+            {items.map(item => (
+              <option key={item._id} value={item._id}>
+                {item.name}
               </option>
             ))}
           </select>
 
-          <select
-            className="w-full border rounded-lg p-2"
-            value={selectedItem}
-            onChange={e => setSelectedItem(e.target.value)}
-            required
-          >
-            <option value="">Select Item</option>
-            {items.map(i => (
-              <option key={i._id} value={i._id}>
-                {i.name}
-              </option>
-            ))}
-          </select>
-
+          {/* Quantity */}
           <input
             type="number"
-            placeholder="Quantity"
-            className="w-full border rounded-lg p-2"
+            placeholder="Quantity Received"
+            className="border rounded-lg p-2 w-full"
             value={quantity}
-            onChange={e => setQuantity(e.target.value)}
+            onChange={(e) => setQuantity(e.target.value)}
             required
           />
 
+          {/* Cost Per Unit */}
           <input
             type="number"
-            placeholder="Cost Price"
-            className="w-full border rounded-lg p-2"
-            value={costPrice}
-            onChange={e => setCostPrice(e.target.value)}
+            placeholder="Cost Per Unit"
+            className="border rounded-lg p-2 w-full"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
             required
           />
 
+          {/* Auto Calculated Total */}
+          <div className="bg-gray-100 p-3 rounded-lg">
+            <p className="text-sm text-gray-500">
+              Total Purchase Value
+            </p>
+            <p className="text-lg font-semibold">
+              ₹{total}
+            </p>
+          </div>
+
+          {/* Submit */}
           <button
             type="submit"
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+            disabled={!productId || !quantity || !price || loading}
+            className="bg-blue-600 text-white py-2 rounded-lg w-full disabled:opacity-50"
           >
-            Create Invoice
+            {loading ? "Saving..." : "Save Purchase"}
           </button>
+
         </form>
       </div>
+
     </div>
   )
 }
