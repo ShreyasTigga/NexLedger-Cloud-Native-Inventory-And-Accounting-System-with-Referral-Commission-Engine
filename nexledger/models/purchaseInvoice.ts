@@ -1,46 +1,46 @@
-import mongoose, { Schema, Document, models, model } from "mongoose"
+import mongoose, { Schema, models, model } from "mongoose"
 
-export interface PurchaseItem {
-  itemId: mongoose.Types.ObjectId
-  quantity: number
-  costPrice: number
-}
+const PurchaseItemSchema = new Schema({
+  productId: {
+    type: Schema.Types.ObjectId,
+    ref: "Item",
+    required: true
+  },
+  quantity: {
+    type: Number,
+    required: true
+  },
+  purchasePrice: {
+    type: Number,
+    required: true
+  },
+  totalAmount: {
+    type: Number,
+    required: true
+  }
+})
 
-export interface PurchaseInvoiceDocument extends Document {
-  supplierId: mongoose.Types.ObjectId
-  invoiceNumber: string
-  items: PurchaseItem[]
-  totalAmount: number
-  createdAt: Date
-  updatedAt: Date
-}
-
-const PurchaseInvoiceSchema = new Schema<PurchaseInvoiceDocument>(
+const PurchaseInvoiceSchema = new Schema(
   {
-    supplierId: {
-      type: Schema.Types.ObjectId,
-      ref: "Supplier",
+    invoiceNumber: {
+      type: String,
       required: true
     },
-    invoiceNumber: { type: String, required: true },
-    items: [
-      {
-        itemId: {
-          type: Schema.Types.ObjectId,
-          ref: "Item",
-          required: true
-        },
-        quantity: { type: Number, required: true },
-        costPrice: { type: Number, required: true }
-      }
-    ],
-    totalAmount: { type: Number, required: true }
+    supplierName: {
+      type: String,
+      trim: true
+    },
+    totalAmount: {
+      type: Number,
+      required: true
+    },
+    items: [PurchaseItemSchema]
   },
   { timestamps: true }
 )
 
 const PurchaseInvoice =
-  (models.PurchaseInvoice as mongoose.Model<PurchaseInvoiceDocument>) ||
-  model<PurchaseInvoiceDocument>("PurchaseInvoice", PurchaseInvoiceSchema)
+  models.PurchaseInvoice ||
+  model("PurchaseInvoice", PurchaseInvoiceSchema)
 
 export default PurchaseInvoice
