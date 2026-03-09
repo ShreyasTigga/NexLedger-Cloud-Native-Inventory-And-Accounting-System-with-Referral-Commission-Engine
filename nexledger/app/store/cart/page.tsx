@@ -5,10 +5,10 @@ import { useCart } from "@/components/CartProvider"
 export default function CartPage() {
   const { cart, removeFromCart, clearCart } = useCart()
 
-  const total = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  )
+const total = cart.reduce(
+  (sum: number, item) => sum + item.price * item.quantity,
+  0
+)
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -19,7 +19,7 @@ export default function CartPage() {
 
       {cart.length === 0 && <p>Cart is empty</p>}
 
-      {cart.map(item => (
+      {cart.map((item) => (
         <div
           key={item.productId}
           className="flex justify-between border-b py-4"

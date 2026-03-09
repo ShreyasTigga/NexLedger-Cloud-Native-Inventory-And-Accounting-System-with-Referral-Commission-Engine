@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react"
 
-interface CartItem {
+export interface CartItem {
   productId: string
   name: string
   price: number
@@ -21,7 +21,6 @@ const CartContext = createContext<CartContextType | undefined>(undefined)
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([])
 
-  // Load cart from localStorage
   useEffect(() => {
     const storedCart = localStorage.getItem("cart")
     if (storedCart) {
@@ -29,7 +28,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Save cart to localStorage
   useEffect(() => {
     localStorage.setItem("cart", JSON.stringify(cart))
   }, [cart])

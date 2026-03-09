@@ -19,29 +19,48 @@ export interface ItemDocument extends Document {
 
 const ItemSchema = new Schema<ItemDocument>(
   {
-    name: { type: String, required: true },
+    name: {
+      type: String,
+      required: true
+    },
 
-    sku: { type: String, required: true, unique: true },
+    sku: {
+      type: String,
+      required: true,
+      unique: true
+    },
 
-    barcode: { type: String, unique: true, sparse: true },
+    barcode: {
+      type: String
+    },
 
-    category: { type: String, required: true },
+    category: {
+      type: String,
+      required: true
+    },
 
-    brand: { type: String },
+    brand: {
+      type: String
+    },
 
     unit: {
       type: String,
-      required: true,
-      default: "piece"
+      default: "piece",
+      required: true
     },
 
-    costPrice: { type: Number, required: true },
+    costPrice: {
+      type: Number,
+      required: true
+    },
 
-    sellingPrice: { type: Number, required: true },
+    sellingPrice: {
+      type: Number,
+      required: true
+    },
 
     taxRate: {
       type: Number,
-      required: true,
       default: 0
     },
 
@@ -52,7 +71,6 @@ const ItemSchema = new Schema<ItemDocument>(
 
     reorderLevel: {
       type: Number,
-      required: true,
       default: 5
     },
 
@@ -61,7 +79,9 @@ const ItemSchema = new Schema<ItemDocument>(
       ref: "Supplier"
     }
   },
-  { timestamps: true }
+  {
+    timestamps: true
+  }
 )
 
 const Item =

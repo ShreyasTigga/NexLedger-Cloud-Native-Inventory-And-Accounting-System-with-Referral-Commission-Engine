@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useCart } from "@/components/CartProvider"
 
 interface Product {
   _id: string
@@ -13,6 +14,7 @@ interface Product {
 
 export default function StorePage() {
   const [products, setProducts] = useState<Product[]>([])
+  const { addToCart } = useCart()
 
   useEffect(() => {
     fetch("/api/store/products")
@@ -58,6 +60,14 @@ export default function StorePage() {
 
             {/* Add to cart */}
             <button
+              onClick={() =>
+                addToCart({
+                  productId: product._id,
+                  name: product.name,
+                  price: product.sellingPrice,
+                  quantity: 1
+                })
+              }
               className="mt-4 w-full bg-blue-600 text-white py-2 rounded-lg"
             >
               Add to Cart

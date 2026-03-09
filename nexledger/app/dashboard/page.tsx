@@ -6,11 +6,15 @@ interface Item {
   _id: string
   name: string
   sku: string
-  category?: string
+  barcode?: string
+  category: string
+  brand?: string
+  unit: string
   costPrice: number
   sellingPrice: number
+  taxRate: number
   stockQuantity: number
-  reorderLevel?: number
+  reorderLevel: number
 }
 
 export default function DashboardPage() {
