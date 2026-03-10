@@ -60,18 +60,23 @@ export default function StorePage() {
 
             {/* Add to cart */}
             <button
-              onClick={() =>
-                addToCart({
-                  productId: product._id,
-                  name: product.name,
-                  price: product.sellingPrice,
-                  quantity: 1
-                })
-              }
-              className="mt-4 w-full bg-blue-600 text-white py-2 rounded-lg"
-            >
-              Add to Cart
-            </button>
+  disabled={product.stockQuantity === 0}
+  onClick={() =>
+    addToCart({
+      productId: product._id,
+      name: product.name,
+      price: product.sellingPrice,
+      quantity: 1
+    })
+  }
+  className={`mt-4 w-full py-2 rounded-lg text-white ${
+    product.stockQuantity === 0
+      ? "bg-gray-400 cursor-not-allowed"
+      : "bg-blue-600 hover:bg-blue-700"
+  }`}
+>
+  {product.stockQuantity === 0 ? "Out of Stock" : "Add to Cart"}
+</button>
 
           </div>
         ))}

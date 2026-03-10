@@ -8,8 +8,13 @@ interface Product {
   sku: string
   barcode?: string
   category: string
+  brand?: string
+  unit: string
+  costPrice: number
   sellingPrice: number
+  taxRate: number
   stockQuantity: number
+  reorderLevel: number
 }
 
 export default function ProductsPage() {
@@ -23,17 +28,21 @@ export default function ProductsPage() {
     sku: "",
     barcode: "",
     category: "",
+    brand: "",
+    unit: "piece",
     costPrice: "",
     sellingPrice: "",
-    taxRate: "0",
-    reorderLevel: "5"
+    taxRate: "",
+    reorderLevel: ""
   })
 
   const fetchProducts = async () => {
     const res = await fetch(
       `/api/inventory/items?search=${search}&page=${page}`
     )
+
     const data = await res.json()
+
     setProducts(data.products)
     setTotalPages(data.totalPages)
   }
@@ -42,11 +51,11 @@ export default function ProductsPage() {
     fetchProducts()
   }, [search, page])
 
-  const handleChange = (e: any) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
-  const handleSubmit = async (e: any) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     const res = await fetch("/api/inventory/items", {
@@ -62,21 +71,23 @@ export default function ProductsPage() {
     })
 
     if (res.ok) {
-      alert("Product Created ✅")
       setForm({
         name: "",
         sku: "",
         barcode: "",
         category: "",
+        brand: "",
+        unit: "piece",
         costPrice: "",
         sellingPrice: "",
-        taxRate: "0",
-        reorderLevel: "5"
+        taxRate: "",
+        reorderLevel: ""
       })
+
       fetchProducts()
     } else {
       const error = await res.json()
-      alert(error.error || "Error")
+      alert(error.error || "Error creating product")
     }
   }
 
@@ -86,6 +97,7 @@ export default function ProductsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id })
     })
+
     fetchProducts()
   }
 
@@ -98,40 +110,111 @@ export default function ProductsPage() {
           Create Product
         </h2>
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 md:grid-cols-3 gap-4"
+        >
 
-          <input name="name" placeholder="Product Name"
+          <input
+            name="name"
+            placeholder="Product Name"
             className="border rounded-lg p-2"
-            value={form.name} onChange={handleChange} required />
+            value={form.name}
+            onChange={handleChange}
+            required
+          />
 
-          <input name="sku" placeholder="SKU"
+          <input
+            name="sku"
+            placeholder="SKU"
             className="border rounded-lg p-2"
-            value={form.sku} onChange={handleChange} required />
+            value={form.sku}
+            onChange={handleChange}
+            required
+          />
 
-          <input name="barcode" placeholder="Scan or Enter Barcode"
+          <input
+            name="barcode"
+            placeholder="Barcode"
             className="border rounded-lg p-2"
-            value={form.barcode} onChange={handleChange} />
+            value={form.barcode}
+            onChange={handleChange}
+          />
 
-          <input name="category" placeholder="Category"
+          <input
+            name="category"
+            placeholder="Category"
             className="border rounded-lg p-2"
-            value={form.category} onChange={handleChange} required />
+            value={form.category}
+            onChange={handleChange}
+            required
+          />
 
-          <input name="costPrice" type="number"
+          <input
+            name="brand"
+            placeholder="Brand"
+            className="border rounded-lg p-2"
+            value={form.brand}
+            onChange={handleChange}
+          />
+
+          <select
+            name="unit"
+            className="border rounded-lg p-2"
+            value={form.unit}
+            onChange={handleChange}
+          >
+            <option value="piece">Piece</option>
+            <option value="kg">Kg</option>
+            <option value="box">Box</option>
+            <option value="litre">Litre</option>
+          </select>
+
+          <input
+            name="costPrice"
+            type="number"
             placeholder="Cost Price"
             className="border rounded-lg p-2"
-            value={form.costPrice} onChange={handleChange} required />
+            value={form.costPrice}
+            onChange={handleChange}
+            required
+          />
 
-          <input name="sellingPrice" type="number"
+          <input
+            name="sellingPrice"
+            type="number"
             placeholder="Selling Price"
             className="border rounded-lg p-2"
-            value={form.sellingPrice} onChange={handleChange} required />
+            value={form.sellingPrice}
+            onChange={handleChange}
+            required
+          />
+
+          <input
+            name="taxRate"
+            type="number"
+            placeholder="Tax Rate (%)"
+            className="border rounded-lg p-2"
+            value={form.taxRate}
+            onChange={handleChange}
+          />
+
+          <input
+            name="reorderLevel"
+            type="number"
+            placeholder="Reorder Level"
+            className="border rounded-lg p-2"
+            value={form.reorderLevel}
+            onChange={handleChange}
+          />
 
           <button
             type="submit"
-            className="md:col-span-2 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+            className="md:col-span-3 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
           >
             Create Product
           </button>
+
         </form>
       </div>
 
@@ -161,20 +244,28 @@ export default function ProductsPage() {
           <tbody>
             {products.map((p) => (
               <tr key={p._id} className="border-b hover:bg-gray-50">
+
                 <td className="p-3">{p.name}</td>
+
                 <td className="p-3">{p.sku}</td>
+
                 <td className="p-3">{p.barcode || "-"}</td>
+
                 <td className="p-3">{p.category}</td>
+
                 <td className="p-3">₹{p.sellingPrice}</td>
+
                 <td className="p-3">{p.stockQuantity}</td>
+
                 <td className="p-3">
                   <button
-                    className="text-red-600"
+                    className="text-red-600 hover:underline"
                     onClick={() => deleteProduct(p._id)}
                   >
                     Delete
                   </button>
                 </td>
+
               </tr>
             ))}
           </tbody>
@@ -183,6 +274,7 @@ export default function ProductsPage() {
 
       {/* Pagination */}
       <div className="flex justify-center gap-4">
+
         <button
           disabled={page === 1}
           onClick={() => setPage(page - 1)}
@@ -191,7 +283,7 @@ export default function ProductsPage() {
           Prev
         </button>
 
-        <span>Page {page}</span>
+        <span>Page {page} / {totalPages}</span>
 
         <button
           disabled={page === totalPages}
@@ -200,6 +292,7 @@ export default function ProductsPage() {
         >
           Next
         </button>
+
       </div>
 
     </div>

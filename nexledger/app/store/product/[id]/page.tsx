@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
+import { useCart } from "@/components/CartProvider"
 
 interface Product {
   _id: string
@@ -15,6 +16,7 @@ interface Product {
 export default function ProductPage() {
   const params = useParams()
   const [product, setProduct] = useState<Product | null>(null)
+  const { addToCart } = useCart()
 
   useEffect(() => {
     fetch(`/api/store/products/${params.id}`)
@@ -72,10 +74,18 @@ export default function ProductPage() {
           )}
 
           <button
-            className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg"
-          >
-            Add to Cart
-          </button>
+  onClick={() =>
+    addToCart({
+      productId: product._id,
+      name: product.name,
+      price: product.sellingPrice,
+      quantity: 1
+    })
+  }
+  className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+>
+  Add to Cart
+</button>
 
         </div>
 
