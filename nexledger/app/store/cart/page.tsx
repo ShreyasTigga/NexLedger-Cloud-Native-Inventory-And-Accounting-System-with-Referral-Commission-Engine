@@ -11,28 +11,42 @@ export default function CartPage() {
     0
   )
 
-  const checkout = async () => {
+const checkout = async () => {
 
-    const res = await fetch("/api/sales", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        customerName: "Walk-in Customer",
-        items: cart
-      })
-    })
+  // Validate stock first
+  for (const item of cart) {
 
-    const data = await res.json()
+    const res = await fetch(`/api/store/products/${item.productId}`)
+    const product = await res.json()
 
-    if (res.ok) {
-      alert("Order placed successfully")
-      clearCart()
-    } else {
-      alert(data.error)
+    if (product.stockQuantity < item.quantity) {
+      alert(
+        `${product.name} only has ${product.stockQuantity} items left in stock`
+      )
+      return
     }
   }
+
+  const res = await fetch("/api/sales", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      customerName: "Walk-in Customer",
+      items: cart
+    })
+  })
+
+  const data = await res.json()
+
+  if (res.ok) {
+    alert("Order placed successfully")
+    clearCart()
+  } else {
+    alert(data.error)
+  }
+}
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -71,19 +85,29 @@ export default function CartPage() {
 
               <span>{item.quantity}</span>
 
-              <button
-                onClick={() =>
-                  addToCart({
-                    productId: item.productId,
-                    name: item.name,
-                    price: item.price,
-                    quantity: 1
-                  })
-                }
-                className="px-2 bg-gray-200 rounded"
-              >
-                +
-              </button>
+          <button
+  onClick={async () => {
+
+    const res = await fetch(`/api/store/products/${item.productId}`)
+    const product = await res.json()
+
+    if (item.quantity >= product.stockQuantity) {
+      alert("Cannot add more than available stock")
+      return
+    }
+
+    addToCart({
+      productId: item.productId,
+      name: item.name,
+      price: item.price,
+      quantity: 1
+    })
+
+  }}
+  className="px-2 bg-gray-200 rounded"
+>
+  +
+</button>
 
             </div>
 
