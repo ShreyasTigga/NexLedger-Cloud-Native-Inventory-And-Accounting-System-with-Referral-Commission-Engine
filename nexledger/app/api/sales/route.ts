@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import Item from "@/models/item"
 import SalesInvoice from "@/models/salesInvoice"
+import StockMovement from "@/models/stockMovement"
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,8 +41,11 @@ export async function POST(req: NextRequest) {
       totalAmount += item.price * item.quantity
 
       // Reduce stock
-      await Item.findByIdAndUpdate(product._id, {
-        $inc: { stockQuantity: -item.quantity }
+      await StockMovement.create({
+        itemId: product._id,
+        type: "sale",
+        quantity: -item.quantity,
+        reference: "Sales Invoice"
       })
     }
 
@@ -66,4 +70,30 @@ export async function POST(req: NextRequest) {
     )
 
   }
+}
+
+export async function GET() {
+
+  await dbConnect()
+
+  const invoices = await SalesInvoice.find()
+    .sort({ createdAt: -1 })
+    .limit(10)
+
+  const totalRevenue = await SalesInvoice.aggregate([
+    {
+      $group: {
+        _id: null,
+        total: { $sum: "$totalAmount" }
+      }
+    }
+  ])
+
+  const totalSales = await SalesInvoice.countDocuments()
+
+  return NextResponse.json({
+    invoices,
+    totalRevenue: totalRevenue[0]?.total || 0,
+    totalSales
+  })
 }
