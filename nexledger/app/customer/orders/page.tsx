@@ -1,52 +1,55 @@
 "use client"
 
 import { useCart } from "@/components/CartProvider"
+import { useRouter } from "next/navigation"
 
 export default function CartPage() {
 
-  const { cart, removeFromCart, clearCart, addToCart } = useCart()
+  const router = useRouter()
+
+  const { cart, removeFromCart, clearCart, addToCart, decreaseQuantity } = useCart()
 
   const total = cart.reduce(
     (sum: number, item) => sum + item.price * item.quantity,
     0
   )
 
-const checkout = async () => {
+  const checkout = async () => {
 
-  // Validate stock first
-  for (const item of cart) {
+    // Validate stock first
+    for (const item of cart) {
 
-    const res = await fetch(`/api/store/products/${item.productId}`)
-    const product = await res.json()
+      const res = await fetch(`/api/store/products/${item.productId}`)
+      const product = await res.json()
 
-    if (product.stockQuantity < item.quantity) {
-      alert(
-        `${product.name} only has ${product.stockQuantity} items left in stock`
-      )
-      return
+      if (product.stockQuantity < item.quantity) {
+        alert(
+          `${product.name} only has ${product.stockQuantity} items left in stock`
+        )
+        return
+      }
+    }
+
+    const res = await fetch("/api/sales", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        customerName: "Walk-in Customer",
+        items: cart
+      })
+    })
+
+    const data = await res.json()
+
+    if (res.ok) {
+      clearCart()
+      router.push(`/store/order/${data._id}`)
+    } else {
+      alert(data.error)
     }
   }
-
-  const res = await fetch("/api/sales", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      customerName: "Walk-in Customer",
-      items: cart
-    })
-  })
-
-  const data = await res.json()
-
-  if (res.ok) {
-    alert("Order placed successfully")
-    clearCart()
-  } else {
-    alert(data.error)
-  }
-}
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -77,7 +80,7 @@ const checkout = async () => {
             <div className="flex items-center gap-2 mt-2">
 
               <button
-                onClick={() => removeFromCart(item.productId)}
+                onClick={() => decreaseQuantity(item.productId)}
                 className="px-2 bg-gray-200 rounded"
               >
                 -
@@ -85,29 +88,29 @@ const checkout = async () => {
 
               <span>{item.quantity}</span>
 
-          <button
-  onClick={async () => {
+              <button
+                onClick={async () => {
 
-    const res = await fetch(`/api/store/products/${item.productId}`)
-    const product = await res.json()
+                  const res = await fetch(`/api/store/products/${item.productId}`)
+                  const product = await res.json()
 
-    if (item.quantity >= product.stockQuantity) {
-      alert("Cannot add more than available stock")
-      return
-    }
+                  if (item.quantity >= product.stockQuantity) {
+                    alert("Cannot add more than available stock")
+                    return
+                  }
 
-    addToCart({
-      productId: item.productId,
-      name: item.name,
-      price: item.price,
-      quantity: 1
-    })
+                  addToCart({
+                    productId: item.productId,
+                    name: item.name,
+                    price: item.price,
+                    quantity: 1
+                  })
 
-  }}
-  className="px-2 bg-gray-200 rounded"
->
-  +
-</button>
+                }}
+                className="px-2 bg-gray-200 rounded"
+              >
+                +
+              </button>
 
             </div>
 

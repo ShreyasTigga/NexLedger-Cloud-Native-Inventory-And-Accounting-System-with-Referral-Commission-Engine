@@ -52,9 +52,19 @@ export default function StorePage() {
                 ₹{product.sellingPrice}
               </p>
 
-              <p className="text-sm text-green-600">
-                In Stock: {product.stockQuantity}
-              </p>
+              <p
+  className={`text-sm ${
+    product.stockQuantity === 0
+      ? "text-red-600"
+      : product.stockQuantity < 5
+      ? "text-yellow-600"
+      : "text-green-600"
+  }`}
+>
+  {product.stockQuantity === 0
+    ? "Out of Stock"
+    : `In Stock: ${product.stockQuantity}`}
+</p>
 
             </Link>
 

@@ -84,6 +84,10 @@ const ItemSchema = new Schema<ItemDocument>(
   }
 )
 
+ItemSchema.index({ sku: 1 })
+ItemSchema.index({ category: 1 })
+ItemSchema.index({ name: "text" })
+
 const Item =
   (models.Item as mongoose.Model<ItemDocument>) ||
   model<ItemDocument>("Item", ItemSchema)

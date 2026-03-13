@@ -38,9 +38,13 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      totalAmount += item.price * item.quantity
+      totalAmount += product.sellingPrice * item.quantity
 
       // Reduce stock
+      await Item.findByIdAndUpdate(product._id, {
+        $inc: { stockQuantity: -item.quantity }
+      })
+
       await StockMovement.create({
         itemId: product._id,
         type: "sale",

@@ -14,11 +14,13 @@ interface CartContextType {
   addToCart: (item: CartItem) => void
   removeFromCart: (productId: string) => void
   clearCart: () => void
+  decreaseQuantity: (productId: string) => void
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+
   const [cart, setCart] = useState<CartItem[]>([])
 
   useEffect(() => {
@@ -52,13 +54,31 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setCart(prev => prev.filter(p => p.productId !== productId))
   }
 
+  const decreaseQuantity = (productId: string) => {
+    setCart(prev =>
+      prev
+        .map(item =>
+          item.productId === productId
+            ? { ...item, quantity: item.quantity - 1 }
+            : item
+        )
+        .filter(item => item.quantity > 0)
+    )
+  }
+
   const clearCart = () => {
     setCart([])
   }
 
   return (
     <CartContext.Provider
-      value={{ cart, addToCart, removeFromCart, clearCart }}
+      value={{
+        cart,
+        addToCart,
+        removeFromCart,
+        clearCart,
+        decreaseQuantity
+      }}
     >
       {children}
     </CartContext.Provider>
