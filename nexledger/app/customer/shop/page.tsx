@@ -12,35 +12,76 @@ interface Product {
   category?: string
 }
 
-export default function StorePage() {
+export default function ShopPage() {
+
   const [products, setProducts] = useState<Product[]>([])
+  const [search, setSearch] = useState("")
+  const [category, setCategory] = useState("")
+
   const { addToCart } = useCart()
 
+  const fetchProducts = async () => {
+
+    const params = new URLSearchParams()
+
+    if (search) params.append("search", search)
+    if (category) params.append("category", category)
+
+    const res = await fetch(`/api/store/products?${params.toString()}`)
+    const data = await res.json()
+
+    setProducts(data)
+  }
+
   useEffect(() => {
-    fetch("/api/store/products")
-      .then(res => res.json())
-      .then(data => setProducts(data))
-  }, [])
+    fetchProducts()
+  }, [search, category])
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
 
-      <h1 className="text-3xl font-semibold mb-8">
-        Store
+    <div className="max-w-6xl mx-auto space-y-6">
+
+      <h1 className="text-3xl font-semibold">
+        Shop
       </h1>
 
+      {/* Search + Filters */}
+      <div className="flex gap-4">
+
+        <input
+          type="text"
+          placeholder="Search products..."
+          className="border rounded-lg px-4 py-2 w-full"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
+        <select
+          className="border rounded-lg px-4 py-2"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          <option value="">All Categories</option>
+          <option value="electronics">Electronics</option>
+          <option value="grocery">Grocery</option>
+          <option value="accessories">Accessories</option>
+        </select>
+
+      </div>
+
+      {/* Product Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
 
         {products.map(product => (
+
           <div
             key={product._id}
             className="border rounded-xl p-4 shadow-sm hover:shadow-md transition"
           >
 
-            {/* Product link */}
-            <Link href={`/store/product/${product._id}`}>
+            <Link href={`/customer/product/${product._id}`}>
 
-              <h2 className="font-semibold text-lg hover:text-blue-600 cursor-pointer">
+              <h2 className="font-semibold text-lg hover:text-blue-600">
                 {product.name}
               </h2>
 
@@ -53,42 +94,42 @@ export default function StorePage() {
               </p>
 
               <p
-  className={`text-sm ${
-    product.stockQuantity === 0
-      ? "text-red-600"
-      : product.stockQuantity < 5
-      ? "text-yellow-600"
-      : "text-green-600"
-  }`}
->
-  {product.stockQuantity === 0
-    ? "Out of Stock"
-    : `In Stock: ${product.stockQuantity}`}
-</p>
+                className={`text-sm ${
+                  product.stockQuantity === 0
+                    ? "text-red-600"
+                    : product.stockQuantity < 5
+                    ? "text-yellow-600"
+                    : "text-green-600"
+                }`}
+              >
+                {product.stockQuantity === 0
+                  ? "Out of Stock"
+                  : `In Stock: ${product.stockQuantity}`}
+              </p>
 
             </Link>
 
-            {/* Add to cart */}
             <button
-  disabled={product.stockQuantity === 0}
-  onClick={() =>
-    addToCart({
-      productId: product._id,
-      name: product.name,
-      price: product.sellingPrice,
-      quantity: 1
-    })
-  }
-  className={`mt-4 w-full py-2 rounded-lg text-white ${
-    product.stockQuantity === 0
-      ? "bg-gray-400 cursor-not-allowed"
-      : "bg-blue-600 hover:bg-blue-700"
-  }`}
->
-  {product.stockQuantity === 0 ? "Out of Stock" : "Add to Cart"}
-</button>
+              disabled={product.stockQuantity === 0}
+              onClick={() =>
+                addToCart({
+                  productId: product._id,
+                  name: product.name,
+                  price: product.sellingPrice,
+                  quantity: 1
+                })
+              }
+              className={`mt-4 w-full py-2 rounded-lg text-white ${
+                product.stockQuantity === 0
+                  ? "bg-gray-400"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
+            >
+              {product.stockQuantity === 0 ? "Out of Stock" : "Add to Cart"}
+            </button>
 
           </div>
+
         ))}
 
       </div>
