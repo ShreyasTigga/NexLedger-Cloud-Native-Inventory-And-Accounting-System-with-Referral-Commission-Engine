@@ -8,15 +8,20 @@ interface SalesItem {
 }
 
 export interface SalesInvoiceDocument extends Document {
-  customerName?: string
+  customerId: mongoose.Types.ObjectId
   items: SalesItem[]
   totalAmount: number
+  status: string
   createdAt: Date
 }
 
 const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
   {
-    customerName: String,
+    customerId: {
+      type: Schema.Types.ObjectId,
+      ref: "Customer",
+      required: true
+    },
 
     items: [
       {
@@ -34,8 +39,15 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
     totalAmount: {
       type: Number,
       required: true
-    }
+    },
+
+    status: {
+      type: String,
+      enum: ["pending", "paid", "shipped", "delivered"],
+      default: "paid"
+   }
   },
+
   { timestamps: true }
 )
 
