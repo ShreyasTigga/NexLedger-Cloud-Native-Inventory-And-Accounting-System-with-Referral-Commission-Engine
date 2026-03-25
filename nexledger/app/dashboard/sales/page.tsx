@@ -13,7 +13,7 @@ export default function SalesDashboard() {
   const [data, setData] = useState<any>(null)
 
   useEffect(() => {
-    fetch("/api/sales/dashboard")
+    fetch("/api/sales")
       .then(res => res.json())
       .then(setData)
   }, [])

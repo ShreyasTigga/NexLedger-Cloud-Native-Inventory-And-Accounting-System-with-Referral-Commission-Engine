@@ -5,6 +5,12 @@ interface SalesItem {
   name: string
   quantity: number
   price: number
+
+  taxRate: number
+  cgst: number
+  sgst: number
+  gstAmount: number
+  total: number
 }
 
 export interface SalesInvoiceDocument extends Document {
@@ -32,7 +38,13 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
         },
         name: String,
         quantity: Number,
-        price: Number
+        price: Number,
+
+        taxRate: Number,
+        cgst: Number,
+        sgst: Number,
+        gstAmount: Number,
+        total: Number
       }
     ],
 
@@ -45,9 +57,8 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
       type: String,
       enum: ["pending", "paid", "shipped", "delivered"],
       default: "paid"
-   }
+    }
   },
-
   { timestamps: true }
 )
 

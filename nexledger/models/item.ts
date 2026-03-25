@@ -84,7 +84,6 @@ const ItemSchema = new Schema<ItemDocument>(
   }
 )
 
-ItemSchema.index({ sku: 1 })
 ItemSchema.index({ category: 1 })
 ItemSchema.index({ name: "text" })
 
