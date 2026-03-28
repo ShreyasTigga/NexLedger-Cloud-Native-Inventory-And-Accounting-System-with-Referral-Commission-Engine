@@ -139,7 +139,7 @@ export async function PUT(req: NextRequest) {
   try {
     await dbConnect()
 
-    const { id, ...updates } = await req.json()
+    const { id, sellingPrice, taxRate, updates } = await req.json()
 
     // Optional: protect SKU uniqueness on update
     if (updates.sku) {
@@ -159,6 +159,22 @@ export async function PUT(req: NextRequest) {
     const updated = await Item.findByIdAndUpdate(id, updates, {
       new: true
     })
+
+    const product = await Item.findByIdAndUpdate(
+      id,
+      {
+        sellingPrice,
+        taxRate
+      },
+      { new: true }
+    )
+
+    if (!product) {
+      return NextResponse.json(
+        { error: "Product not found" },
+        { status: 404 }
+      )
+    }
 
     return NextResponse.json(updated)
 

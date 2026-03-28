@@ -1,47 +1,39 @@
 import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
+import mongoose from "mongoose"
+
 import Item from "@/models/item"
 import SalesInvoice from "@/models/salesInvoice"
 import StockMovement from "@/models/stockMovement"
+import LedgerEntry from "@/models/ledgerEntry"
 
-export async function GET() {
-  try {
-    await dbConnect()
+export async function GET(req: NextRequest) {
+  await dbConnect()
 
-    const invoices = await SalesInvoice.find()
-      .sort({ createdAt: -1 })
-      .limit(10)
+  const { searchParams } = new URL(req.url)
 
-    const totalRevenueData = await SalesInvoice.aggregate([
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$totalAmount" }
-        }
-      }
-    ])
+  const page = Number(searchParams.get("page")) || 1
+  const limit = 10
+  const skip = (page - 1) * limit
 
-    const totalRevenue = totalRevenueData[0]?.total || 0
+  const invoices = await SalesInvoice.find()
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean()
 
-    const totalSales = await SalesInvoice.countDocuments()
+  const total = await SalesInvoice.countDocuments()
 
-    return NextResponse.json({
-      invoices,
-      totalRevenue,
-      totalSales
-    })
-
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message },
-      { status: 500 }
-    )
-  }
+  return NextResponse.json({
+    invoices,
+    totalPages: Math.ceil(total / limit)
+  })
 }
 
 export async function POST(req: NextRequest) {
-  try {
+  const session = await mongoose.startSession()
 
+  try {
     await dbConnect()
 
     const { items, customerId } = await req.json()
@@ -53,76 +45,127 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const processedItems = []
+    let processedItems: any[] = []
     let totalAmount = 0
+    let totalCGST = 0
+    let totalSGST = 0
 
-    for (const item of items) {
+    await session.withTransaction(async () => {
 
-      const product = await Item.findById(item.productId)
+      for (const item of items) {
 
-      if (!product) {
-        return NextResponse.json(
-          { error: "Product not found" },
-          { status: 404 }
+        const product = await Item.findById(item.productId).session(session)
+
+        if (!product) {
+          throw new Error("Product not found")
+        }
+
+        if (product.stockQuantity < item.quantity) {
+          throw new Error(`Not enough stock for ${product.name}`)
+        }
+
+        const price = product.sellingPrice
+        const taxRate = product.taxRate
+
+        const base = price * item.quantity
+
+        const cgst = taxRate / 2
+        const sgst = taxRate / 2
+
+        const cgstAmount = (base * cgst) / 100
+        const sgstAmount = (base * sgst) / 100
+
+        const gstAmount = cgstAmount + sgstAmount
+        const total = base + gstAmount
+
+        totalAmount += total
+        totalCGST += cgstAmount
+        totalSGST += sgstAmount
+
+        processedItems.push({
+          itemId: product._id,
+          name: product.name,
+          quantity: item.quantity,
+          price,
+          taxRate,
+          cgst,
+          sgst,
+          gstAmount,
+          total
+        })
+
+        // 🔻 Reduce stock
+        await Item.findByIdAndUpdate(
+          product._id,
+          { $inc: { stockQuantity: -item.quantity } },
+          { session }
+        )
+
+        // 📦 Stock movement
+        await StockMovement.create(
+          [{
+            itemId: product._id,
+            type: "sale",
+            quantity: -item.quantity,
+            reference: "Sales Invoice"
+          }],
+          { session }
         )
       }
 
-      if (product.stockQuantity < item.quantity) {
-        return NextResponse.json(
-          { error: `Not enough stock for ${product.name}` },
-          { status: 400 }
-        )
-      }
+      const invoice = await SalesInvoice.create(
+        [{
+          customerId,
+          items: processedItems,
+          totalAmount
+        }],
+        { session }
+      )
 
-      const price = product.sellingPrice
-      const taxRate = product.taxRate
+      const invoiceId = invoice[0]._id
 
-      const base = price * item.quantity
+      // 💰 Ledger Entries
 
-      const cgst = taxRate / 2
-      const sgst = taxRate / 2
-
-      const cgstAmount = (base * cgst) / 100
-      const sgstAmount = (base * sgst) / 100
-
-      const gstAmount = cgstAmount + sgstAmount
-      const total = base + gstAmount
-
-      totalAmount += total
-
-      processedItems.push({
-        itemId: product._id,
-        name: product.name,
-        quantity: item.quantity,
-        price,
-        taxRate,
-        cgst,
-        sgst,
-        gstAmount,
-        total
-      })
-
-      // ✅ Reduce stock (ONLY ONCE)
-      await Item.findByIdAndUpdate(product._id, {
-        $inc: { stockQuantity: -item.quantity }
-      })
-
-      // ✅ Log stock movement
-      await StockMovement.create({
-        itemId: product._id,
-        type: "sale",
-        quantity: -item.quantity,
-        reference: "Sales Invoice"
-      })
+await LedgerEntry.insertMany(
+  [
+    {
+      type: "debit",
+      account: "Customer",
+      amount: totalAmount,
+      referenceId: invoiceId,
+      description: "Sale"
+    },
+    {
+      type: "credit",
+      account: "Sales",
+      amount: totalAmount - (totalCGST + totalSGST),
+      referenceId: invoiceId,
+      description: "Sale Revenue"
+    },
+    {
+      type: "credit",
+      account: "CGST Payable",
+      amount: totalCGST,
+      referenceId: invoiceId,
+      description: "CGST"
+    },
+    {
+      type: "credit",
+      account: "SGST Payable",
+      amount: totalSGST,
+      referenceId: invoiceId,
+      description: "SGST"
     }
+  ],
+  { session }
+)
 
-    const invoice = await SalesInvoice.create({
-      customerId,
-      items: processedItems,
-      totalAmount
     })
 
-    return NextResponse.json(invoice, { status: 201 })
+    return NextResponse.json(
+      { message: "Sale completed successfully" },
+      { status: 201 }
+    )
 
   } catch (err: any) {
 
@@ -131,5 +174,7 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
 
+  } finally {
+    session.endSession()
   }
 }

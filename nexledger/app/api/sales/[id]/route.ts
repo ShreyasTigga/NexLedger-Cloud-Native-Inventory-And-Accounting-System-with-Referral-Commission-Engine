@@ -4,13 +4,11 @@ import SalesInvoice from "@/models/salesInvoice"
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   await dbConnect()
 
-  const { id } = await params
-
-  const invoice = await SalesInvoice.findById(id)
+  const invoice = await SalesInvoice.findById(params.id)
 
   if (!invoice) {
     return NextResponse.json(
