@@ -15,6 +15,9 @@ interface SalesItem {
 
 export interface SalesInvoiceDocument extends Document {
   customerId: mongoose.Types.ObjectId
+
+  referredBy?: mongoose.Types.ObjectId   // ✅ MOVE HERE
+
   items: SalesItem[]
   totalAmount: number
   status: string
@@ -27,6 +30,11 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
       type: Schema.Types.ObjectId,
       ref: "Customer",
       required: true
+    },
+
+    referredBy: {
+      type: Schema.Types.ObjectId,
+      ref: "Customer"
     },
 
     items: [
