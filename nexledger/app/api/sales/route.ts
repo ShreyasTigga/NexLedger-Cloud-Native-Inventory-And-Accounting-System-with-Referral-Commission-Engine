@@ -3,9 +3,13 @@ import dbConnect from "@/lib/mongodb"
 import mongoose from "mongoose"
 
 import Item from "@/models/item"
+import Customer from "@/models/customer"
 import SalesInvoice from "@/models/salesInvoice"
 import StockMovement from "@/models/stockMovement"
 import LedgerEntry from "@/models/ledgerEntry"
+import { processReferralCommission } from "@/lib/referralService"
+
+// ================= GET =================
 
 export async function GET(req: NextRequest) {
   await dbConnect()
@@ -30,6 +34,20 @@ export async function GET(req: NextRequest) {
   })
 }
 
+// ================= POST =================
+
+type ProcessedItem = {
+  itemId: mongoose.Types.ObjectId
+  name: string
+  quantity: number
+  price: number
+  taxRate: number
+  cgst: number
+  sgst: number
+  gstAmount: number
+  total: number
+}
+
 export async function POST(req: NextRequest) {
   const session = await mongoose.startSession()
 
@@ -45,14 +63,27 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    let processedItems: any[] = []
-    let totalAmount = 0
-    let totalCGST = 0
-    let totalSGST = 0
-
     await session.withTransaction(async () => {
 
+      // 🔥 Validate customer
+      const customer = await Customer.findById(customerId).session(session)
+
+      if (!customer) {
+        throw new Error("Customer not found")
+      }
+
+      let processedItems: ProcessedItem[] = []
+      let totalAmount = 0
+      let totalCGST = 0
+      let totalSGST = 0
+
+      // ================= ITEM LOOP =================
+
       for (const item of items) {
+
+        if (!item.productId || item.quantity <= 0) {
+          throw new Error("Invalid item data")
+        }
 
         const product = await Item.findById(item.productId).session(session)
 
@@ -103,62 +134,78 @@ export async function POST(req: NextRequest) {
 
         // 📦 Stock movement
         await StockMovement.create(
-          [{
-            itemId: product._id,
-            type: "sale",
-            quantity: -item.quantity,
-            reference: "Sales Invoice"
-          }],
+          [
+            {
+              itemId: product._id,
+              type: "sale",
+              quantity: -item.quantity,
+              reference: "SALE"
+            }
+          ],
           { session }
         )
       }
 
+      // ================= CREATE INVOICE =================
+
       const invoice = await SalesInvoice.create(
-        [{
-          customerId,
-          items: processedItems,
-          totalAmount
-        }],
+        [
+          {
+            customerId,
+            referredBy: customer.referredBy, // ✅ FIXED
+            items: processedItems,
+            totalAmount
+          }
+        ],
         { session }
       )
 
       const invoiceId = invoice[0]._id
 
-      // 💰 Ledger Entries
+      // ================= REFERRAL =================
 
-await LedgerEntry.insertMany(
-  [
-    {
-      type: "debit",
-      account: "Customer",
-      amount: totalAmount,
-      referenceId: invoiceId,
-      description: "Sale"
-    },
-    {
-      type: "credit",
-      account: "Sales",
-      amount: totalAmount - (totalCGST + totalSGST),
-      referenceId: invoiceId,
-      description: "Sale Revenue"
-    },
-    {
-      type: "credit",
-      account: "CGST Payable",
-      amount: totalCGST,
-      referenceId: invoiceId,
-      description: "CGST"
-    },
-    {
-      type: "credit",
-      account: "SGST Payable",
-      amount: totalSGST,
-      referenceId: invoiceId,
-      description: "SGST"
-    }
-  ],
-  { session }
-)
+      await processReferralCommission({
+        saleId: invoiceId,
+        customerId,
+        totalAmount,
+        session
+      })
+
+      // ================= LEDGER =================
+
+      await LedgerEntry.insertMany(
+        [
+          {
+            type: "debit",
+            account: "Customer",
+            amount: totalAmount,
+            referenceId: invoiceId,
+            description: "Sale"
+          },
+          {
+            type: "credit",
+            account: "Sales",
+            amount: totalAmount - (totalCGST + totalSGST),
+            referenceId: invoiceId,
+            description: "Sale Revenue"
+          },
+          {
+            type: "credit",
+            account: "CGST Payable",
+            amount: totalCGST,
+            referenceId: invoiceId,
+            description: "CGST"
+          },
+          {
+            type: "credit",
+            account: "SGST Payable",
+            amount: totalSGST,
+            referenceId: invoiceId,
+            description: "SGST"
+          }
+        ],
+        { session }
+      )
 
     })
 
@@ -168,9 +215,10 @@ await LedgerEntry.insertMany(
     )
 
   } catch (err: any) {
+    console.error("SALE ERROR:", err)
 
     return NextResponse.json(
-      { error: err.message },
+      { error: err.message || "Server error" },
       { status: 500 }
     )
 

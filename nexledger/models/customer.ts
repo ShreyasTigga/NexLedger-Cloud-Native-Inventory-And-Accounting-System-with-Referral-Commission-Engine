@@ -4,6 +4,7 @@ export interface CustomerDocument extends Document {
   name: string
   email?: string
   phone?: string
+  password: string
 
   referralCode: string
   referredBy?: mongoose.Types.ObjectId
@@ -19,6 +20,11 @@ const CustomerSchema = new Schema<CustomerDocument>(
     name: { type: String, required: true },
     email: String,
     phone: String,
+
+    password: {
+      type: String,
+      required: true
+    },
 
     referralCode: {
       type: String,
