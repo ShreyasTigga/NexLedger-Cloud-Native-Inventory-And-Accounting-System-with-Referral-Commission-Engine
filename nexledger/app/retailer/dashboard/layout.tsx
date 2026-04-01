@@ -16,14 +16,16 @@ export default function DashboardLayout({
 }: {
   children: ReactNode
 }) {
-  const pathname = usePathname()
+const pathname = usePathname()
+
+const BASE = "/retailer/dashboard"
 
 const navItems = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Products", href: "/dashboard/products", icon: Package },
-  { name: "Purchase", href: "/dashboard/purchase", icon: ShoppingCart },
-  { name: "Sales", href: "/dashboard/sales", icon: ShoppingCart },
-  { name: "Ledger", href: "/dashboard/ledger", icon: BookOpen }
+  { name: "Dashboard", href: BASE, icon: LayoutDashboard },
+  { name: "Products", href: `${BASE}/products`, icon: Package },
+  { name: "Purchase", href: `${BASE}/purchase`, icon: ShoppingCart },
+  { name: "Sales", href: `${BASE}/sales`, icon: ShoppingCart },
+  { name: "Ledger", href: `${BASE}/ledger`, icon: BookOpen }
 ]
 
   const userName = "Admin User"
