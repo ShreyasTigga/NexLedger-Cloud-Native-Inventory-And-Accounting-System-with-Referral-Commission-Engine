@@ -17,7 +17,6 @@ export async function POST(req: NextRequest) {
     const { name, email, phone, password, referralCode } =
       await req.json()
 
-    // Validation
     if (!name || !password) {
       return NextResponse.json(
         { error: "Name and password are required" },
@@ -32,14 +31,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: "Password must be at least 6 characters" },
-        { status: 400 }
-      )
-    }
-
-    // Check existing user
     const existingUser = await Customer.findOne({
       $or: [{ email }, { phone }]
     })
@@ -51,12 +42,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Handle referral
-    let referredById: mongoose.Types.ObjectId | undefined =
-      undefined
+    let referredById: mongoose.Types.ObjectId | undefined
 
     if (referralCode) {
       const parent = await Customer.findOne({ referralCode })
@@ -71,7 +59,7 @@ export async function POST(req: NextRequest) {
       referredById = parent._id
     }
 
-    // Generate unique referral code
+    // Unique referral code
     let newReferralCode = generateReferralCode(name)
 
     while (
@@ -80,14 +68,13 @@ export async function POST(req: NextRequest) {
       newReferralCode = generateReferralCode(name)
     }
 
-    // Create customer
-    const customer: any = await Customer.create({
+    const customer = await Customer.create({
       name,
       email,
       phone,
       password: hashedPassword,
       referralCode: newReferralCode,
-      referredBy: referredById,
+      ...(referredById && { referredBy: referredById }),
       walletBalance: 0
     })
 
@@ -106,10 +93,8 @@ export async function POST(req: NextRequest) {
     )
 
   } catch (err: any) {
-    console.error(err)
-
     return NextResponse.json(
-      { error: "Server error" },
+      { error: err.message || "Server error" },
       { status: 500 }
     )
   }
