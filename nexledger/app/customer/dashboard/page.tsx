@@ -6,40 +6,52 @@ import { useRouter } from "next/navigation"
 interface Child {
   id: string
   name: string
-  email: string
+  email?: string
 }
 
 interface UserDetails {
   id: string
   name: string
-  email: string
+  email?: string
+  phone?: string
   referralCode: string
   walletBalance: number
   referredBy?: string
   children: Child[]
 }
 
+interface ReferralEarning {
+  _id: string
+  amount: number
+  level: number
+  createdAt: string
+}
+
 export default function DashboardPage() {
   const router = useRouter()
 
   const [user, setUser] = useState<UserDetails | null>(null)
+  const [earnings, setEarnings] = useState<ReferralEarning[]>([])
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [withdrawAmount, setWithdrawAmount] = useState("")
-  const [withdrawMessage, setWithdrawMessage] = useState("")
+  const [message, setMessage] = useState("")
 
-  // ================= LOAD USER =================
-  async function fetchUser() {
+  // ================= FETCH USER =================
+  async function fetchData() {
     try {
       setLoading(true)
 
-      const res = await fetch("/api/customers/me")
+      const res = await fetch("/api/customer/me")
       const data = await res.json()
 
       if (!res.ok) throw new Error(data.error)
 
-      setUser(data)
+      setUser(data.user)
+      setEarnings(data.earnings)
+
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -48,30 +60,30 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    fetchUser()
+    fetchData()
   }, [])
 
   // ================= WITHDRAW =================
   async function handleWithdraw(e: FormEvent) {
     e.preventDefault()
 
-    if (!user) return
-
     const amount = Number(withdrawAmount)
 
-    if (amount <= 0) {
+    if (!amount || amount <= 0) {
       setError("Invalid amount")
       return
     }
 
-    if (amount > user.walletBalance) {
+    if (amount > (user?.walletBalance || 0)) {
       setError("Insufficient balance")
       return
     }
 
     const res = await fetch("/api/withdrawals/request", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({ amount })
     })
 
@@ -82,25 +94,33 @@ export default function DashboardPage() {
       return
     }
 
-    setWithdrawMessage("Withdrawal requested successfully")
+    setMessage("Withdrawal requested successfully")
     setWithdrawAmount("")
-    fetchUser()
+    fetchData()
   }
 
-  if (loading) return <p className="p-5">Loading...</p>
+  if (loading) return <p className="p-6">Loading...</p>
 
-  if (error || !user) return <p className="p-5 text-red-500">{error}</p>
+  if (error || !user)
+    return <p className="p-6 text-red-500">{error}</p>
 
   // ================= COMPUTED =================
+  const totalEarnings = earnings.reduce(
+    (sum, e) => sum + e.amount,
+    0
+  )
+
   const referralLink = `${window.location.origin}/customer/register?ref=${user.referralCode}`
 
   return (
-    <div className="min-h-screen bg-slate-50 p-5 space-y-5">
+    <div className="max-w-5xl mx-auto p-6 space-y-6">
 
       {/* HEADER */}
       <div className="bg-blue-600 text-white p-5 rounded-xl">
-        <h1 className="text-xl font-semibold">Welcome, {user.name}</h1>
-        <p className="text-sm">{user.email}</p>
+        <h1 className="text-xl font-semibold">
+          Welcome, {user.name}
+        </h1>
+        <p className="text-sm">{user.email || user.phone}</p>
         <p className="text-xs mt-1">
           Referral Code: <b>{user.referralCode}</b>
         </p>
@@ -126,37 +146,76 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* WALLET */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl">
+      {/* STATS */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+
+        <div className="bg-white p-4 rounded-xl shadow">
           <p className="text-xs">Wallet Balance</p>
-          <p className="text-xl text-green-600">₹{user.walletBalance}</p>
+          <p className="text-xl text-green-600">
+            ₹{user.walletBalance}
+          </p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl">
-          <p className="text-xs">Referrals</p>
-          <p className="text-xl">{user.children.length}</p>
+        <div className="bg-white p-4 rounded-xl shadow">
+          <p className="text-xs">Total Earnings</p>
+          <p className="text-xl text-blue-600">
+            ₹{totalEarnings}
+          </p>
         </div>
+
+        <div className="bg-white p-4 rounded-xl shadow">
+          <p className="text-xs">Referrals</p>
+          <p className="text-xl">
+            {user.children.length}
+          </p>
+        </div>
+
       </div>
 
       {/* REFERRALS */}
-      <div className="bg-white p-4 rounded-xl">
-        <h2 className="text-sm font-semibold mb-2">Your Referrals</h2>
+      <div className="bg-white p-4 rounded-xl shadow">
+        <h2 className="text-sm font-semibold mb-2">
+          Your Referrals
+        </h2>
 
         {user.children.length === 0 ? (
-          <p className="text-sm text-gray-500">No referrals yet</p>
+          <p className="text-sm text-gray-500">
+            No referrals yet
+          </p>
         ) : (
           user.children.map((c) => (
             <div key={c.id} className="text-sm border-b py-1">
-              {c.name} ({c.email})
+              {c.name}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* EARNINGS */}
+      <div className="bg-white p-4 rounded-xl shadow">
+        <h2 className="text-sm font-semibold mb-2">
+          Referral Earnings
+        </h2>
+
+        {earnings.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            No earnings yet
+          </p>
+        ) : (
+          earnings.map((e) => (
+            <div key={e._id} className="flex justify-between text-sm py-1">
+              <span>Level {e.level}</span>
+              <span>₹{e.amount}</span>
             </div>
           ))
         )}
       </div>
 
       {/* WITHDRAW */}
-      <div className="bg-white p-4 rounded-xl">
-        <h2 className="text-sm font-semibold mb-2">Withdraw</h2>
+      <div className="bg-white p-4 rounded-xl shadow">
+        <h2 className="text-sm font-semibold mb-2">
+          Withdraw
+        </h2>
 
         <form onSubmit={handleWithdraw} className="space-y-2">
           <input
@@ -172,8 +231,10 @@ export default function DashboardPage() {
           </button>
         </form>
 
-        {withdrawMessage && (
-          <p className="text-green-600 text-sm mt-2">{withdrawMessage}</p>
+        {message && (
+          <p className="text-green-600 text-sm mt-2">
+            {message}
+          </p>
         )}
       </div>
 

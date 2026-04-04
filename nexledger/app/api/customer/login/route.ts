@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import Customer from "@/models/customer"
 import bcrypt from "bcryptjs"
+import { signToken } from "@/lib/jwt"
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,11 +30,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    return NextResponse.json({
-      message: "Login successful",
-      userId: user._id,
-      referralCode: user.referralCode
+    // 🔥 CREATE TOKEN
+    const token = signToken({
+      userId: user._id
     })
+
+    const response = NextResponse.json({
+      message: "Login successful"
+    })
+
+    // 🔥 STORE IN COOKIE
+    response.cookies.set("token", token, {
+      httpOnly: true,
+      secure: false, // change to true in production
+      path: "/"
+    })
+
+    return response
 
   } catch (err: any) {
     return NextResponse.json(

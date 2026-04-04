@@ -8,7 +8,8 @@ import {
   Package,
   ShoppingCart,
   BookOpen,
-  LogOut
+  LogOut,
+  Settings
 } from "lucide-react"
 
 export default function DashboardLayout({
@@ -25,7 +26,8 @@ const navItems = [
   { name: "Products", href: `${BASE}/products`, icon: Package },
   { name: "Purchase", href: `${BASE}/purchase`, icon: ShoppingCart },
   { name: "Sales", href: `${BASE}/sales`, icon: ShoppingCart },
-  { name: "Ledger", href: `${BASE}/ledger`, icon: BookOpen }
+  { name: "Ledger", href: `${BASE}/ledger`, icon: BookOpen },
+  { name: "Referral Config", href: `${BASE}/referral`, icon: Settings }
 ]
 
   const userName = "Admin User"
