@@ -11,23 +11,50 @@ export function middleware(req: NextRequest) {
     "/customer/register"
   ]
 
-  // 🔥 Block login if already logged in
+  // ================= BLOCK LOGIN IF LOGGED IN =================
   if (token && publicRoutes.includes(pathname)) {
     return NextResponse.redirect(
       new URL("/customer/dashboard", req.url)
     )
   }
 
-  const isProtected =
-    pathname.startsWith("/customer") ||
-    pathname.startsWith("/retailer")
+  // ================= PROTECTED =================
+  const isCustomerRoute = pathname.startsWith("/customer")
+  const isRetailerRoute = pathname.startsWith("/retailer")
 
-  if (isProtected) {
-    if (!token || !verifyToken(token)) {
+  if (isCustomerRoute || isRetailerRoute) {
+
+    if (!token) {
       return NextResponse.redirect(
         new URL("/customer/login", req.url)
       )
     }
+
+    const decoded: any = verifyToken(token)
+
+    if (!decoded) {
+      return NextResponse.redirect(
+        new URL("/customer/login", req.url)
+      )
+    }
+
+    // ================= ROLE CHECK =================
+
+    // Customer trying retailer routes ❌
+    if (isRetailerRoute && decoded.role !== "retailer") {
+      return NextResponse.redirect(
+        new URL("/customer/dashboard", req.url)
+      )
+    }
+
+    // Retailer trying customer routes ❌ (optional rule)
+    if (isCustomerRoute && decoded.role !== "customer") {
+      return NextResponse.redirect(
+        new URL("/retailer/dashboard", req.url)
+      )
+    }
+
+    return NextResponse.next()
   }
 
   return NextResponse.next()

@@ -30,10 +30,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 🔥 CREATE TOKEN
-    const token = signToken({
-      userId: user._id
-    })
+const token = signToken({
+  userId: user._id,
+  role: user.role
+})
 
     const response = NextResponse.json({
       message: "Login successful"

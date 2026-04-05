@@ -15,3 +15,8 @@ export function verifyToken(token: string) {
     return null
   }
 }
+
+export interface JWTPayload {
+  userId: string
+  role: "customer" | "retailer"
+}
