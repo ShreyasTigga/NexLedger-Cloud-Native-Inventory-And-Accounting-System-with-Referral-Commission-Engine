@@ -1,11 +1,8 @@
 import mongoose, { Schema, Document, models, model } from "mongoose"
 
 export interface CustomerDocument extends Document {
-  name: string
-  email?: string
-  phone?: string
-  password: string
-  role: string
+  userId: mongoose.Types.ObjectId
+
   referralCode: string
   referredBy?: mongoose.Types.ObjectId
 
@@ -17,19 +14,12 @@ export interface CustomerDocument extends Document {
 
 const CustomerSchema = new Schema<CustomerDocument>(
   {
-    name: { type: String, required: true },
-    email: String,
-    phone: String,
-
-    password: {
-      type: String,
-      required: true
-    },
-
-    role: {
-      type: String,
-      enum: ["customer", "retailer"],
-      default: "customer"
+    // Link to User
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true
     },
 
     referralCode: {
@@ -51,7 +41,7 @@ const CustomerSchema = new Schema<CustomerDocument>(
   { timestamps: true }
 )
 
-// 🔍 Index for fast tree lookup
+// Index for referral tree traversal
 CustomerSchema.index({ referredBy: 1 })
 
 const Customer =

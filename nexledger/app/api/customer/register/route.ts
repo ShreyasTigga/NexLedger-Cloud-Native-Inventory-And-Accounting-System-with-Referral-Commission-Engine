@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
+import User from "@/models/user"
 import Customer from "@/models/customer"
-import mongoose from "mongoose"
 import bcrypt from "bcryptjs"
+import mongoose from "mongoose"
 
-// Generate referral code
+// referral code generator
 function generateReferralCode(name: string) {
   const random = Math.floor(1000 + Math.random() * 9000)
   return name.substring(0, 3).toUpperCase() + random
@@ -19,19 +20,20 @@ export async function POST(req: NextRequest) {
 
     if (!name || !password) {
       return NextResponse.json(
-        { error: "Name and password are required" },
+        { error: "Name and password required" },
         { status: 400 }
       )
     }
 
     if (!email && !phone) {
       return NextResponse.json(
-        { error: "Email or phone is required" },
+        { error: "Email or phone required" },
         { status: 400 }
       )
     }
 
-    const existingUser = await Customer.findOne({
+    // 🔍 Check existing user
+    const existingUser = await User.findOne({
       $or: [{ email }, { phone }]
     })
 
@@ -44,6 +46,16 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 10)
 
+    // 🔥 Create USER
+    const user = await User.create({
+      name,
+      email,
+      phone,
+      password: hashedPassword,
+      role: "customer"
+    })
+
+    // 🔗 Handle referral
     let referredById: mongoose.Types.ObjectId | undefined
 
     if (referralCode) {
@@ -59,7 +71,7 @@ export async function POST(req: NextRequest) {
       referredById = parent._id
     }
 
-    // Unique referral code
+    // 🔁 Unique referral code
     let newReferralCode = generateReferralCode(name)
 
     while (
@@ -68,11 +80,9 @@ export async function POST(req: NextRequest) {
       newReferralCode = generateReferralCode(name)
     }
 
-    const customer = await Customer.create({
-      name,
-      email,
-      phone,
-      password: hashedPassword,
+    // 🔥 Create CUSTOMER
+    await Customer.create({
+      userId: user._id,
       referralCode: newReferralCode,
       ...(referredById && { referredBy: referredById }),
       walletBalance: 0
@@ -80,21 +90,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       {
-        message: "User registered successfully",
-        user: {
-          id: customer._id,
-          name: customer.name,
-          email: customer.email,
-          phone: customer.phone,
-          referralCode: customer.referralCode
-        }
+        message: "Customer registered successfully"
       },
       { status: 201 }
     )
 
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || "Server error" },
+      { error: err.message },
       { status: 500 }
     )
   }

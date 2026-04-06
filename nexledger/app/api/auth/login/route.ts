@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
-import Customer from "@/models/customer"
+import User from "@/models/user"
 import bcrypt from "bcryptjs"
 import { signToken } from "@/lib/jwt"
 
@@ -10,7 +10,15 @@ export async function POST(req: NextRequest) {
 
     const { identifier, password } = await req.json()
 
-    const user = await Customer.findOne({
+    if (!identifier || !password) {
+      return NextResponse.json(
+        { error: "Missing credentials" },
+        { status: 400 }
+      )
+    }
+
+    // 🔍 Find user
+    const user = await User.findOne({
       $or: [{ email: identifier }, { phone: identifier }]
     })
 
@@ -21,6 +29,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // 🔐 Check password
     const isMatch = await bcrypt.compare(password, user.password)
 
     if (!isMatch) {
@@ -30,23 +39,24 @@ export async function POST(req: NextRequest) {
       )
     }
 
-const token = signToken({
-  userId: user._id,
-  role: user.role
-})
-
-    const response = NextResponse.json({
-      message: "Login successful"
+    // 🔥 Create JWT
+    const token = signToken({
+      userId: user._id,
+      role: user.role
     })
 
-    // 🔥 STORE IN COOKIE
-    response.cookies.set("token", token, {
+    const res = NextResponse.json({
+      message: "Login successful",
+      role: user.role
+    })
+
+    res.cookies.set("token", token, {
       httpOnly: true,
-      secure: false, // change to true in production
+      secure: false,
       path: "/"
     })
 
-    return response
+    return res
 
   } catch (err: any) {
     return NextResponse.json(
