@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import Item from "@/models/item"
+import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
-// CREATE ITEM
+// ================= CREATE =================
 export async function POST(req: NextRequest) {
   try {
     await dbConnect()
+
+    const user = getUserFromRequest(req)
+
+    if (!user || user.role !== "retailer") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
     const body = await req.json()
 
@@ -24,33 +31,33 @@ export async function POST(req: NextRequest) {
     } = body
 
     if (!name || !sku || !category || costPrice == null || sellingPrice == null) {
-      return NextResponse.json(
-        { error: "Required fields missing" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Required fields missing" }, { status: 400 })
     }
 
-    // SKU duplicate
-    const existingSKU = await Item.findOne({ sku })
+    // ✅ SKU unique per retailer
+    const existingSKU = await Item.findOne({
+      sku,
+      retailerId: user.userId
+    })
+
     if (existingSKU) {
-      return NextResponse.json(
-        { error: "SKU already exists" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "SKU already exists" }, { status: 400 })
     }
 
-    // Barcode duplicate
+    // ✅ Barcode unique per retailer
     if (barcode) {
-      const existingBarcode = await Item.findOne({ barcode })
+      const existingBarcode = await Item.findOne({
+        barcode,
+        retailerId: user.userId
+      })
+
       if (existingBarcode) {
-        return NextResponse.json(
-          { error: "Barcode already exists" },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: "Barcode already exists" }, { status: 400 })
       }
     }
 
     const item = await Item.create({
+      retailerId: user.userId,
       name,
       sku,
       barcode,
@@ -67,17 +74,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(item, { status: 201 })
 
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Internal Server Error" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
 
-// GET (Search + Pagination)
+// ================= GET =================
 export async function GET(req: NextRequest) {
   try {
     await dbConnect()
+
+    const user = getUserFromRequest(req)
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
     const { searchParams } = new URL(req.url)
 
@@ -86,15 +96,17 @@ export async function GET(req: NextRequest) {
     const limit = 5
     const skip = (page - 1) * limit
 
-    const query = search
-      ? {
-          $or: [
-            { name: { $regex: search, $options: "i" } },
-            { sku: { $regex: search, $options: "i" } },
-            { barcode: { $regex: search, $options: "i" } }
-          ]
-        }
-      : {}
+    const query: any = {
+      retailerId: user.userId
+    }
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { sku: { $regex: search, $options: "i" } },
+        { barcode: { $regex: search, $options: "i" } }
+      ]
+    }
 
     const products = await Item.find(query)
       .skip(skip)
@@ -109,79 +121,80 @@ export async function GET(req: NextRequest) {
     })
 
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Server error" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
 
-// DELETE
+// ================= DELETE =================
 export async function DELETE(req: NextRequest) {
   try {
     await dbConnect()
+
+    const user = getUserFromRequest(req)
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const { id } = await req.json()
 
-    await Item.findByIdAndDelete(id)
+    const item = await Item.findOneAndDelete({
+      _id: id,
+      retailerId: user.userId // 🔥 SECURITY FIX
+    })
+
+    if (!item) {
+      return NextResponse.json({ error: "Not found or unauthorized" }, { status: 404 })
+    }
 
     return NextResponse.json({ message: "Deleted" })
 
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Server error" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
 
-// UPDATE
+// ================= UPDATE =================
 export async function PUT(req: NextRequest) {
   try {
     await dbConnect()
 
-    const { id, sellingPrice, taxRate, updates } = await req.json()
+    const user = getUserFromRequest(req)
 
-    // Optional: protect SKU uniqueness on update
-    if (updates.sku) {
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { id, updates } = await req.json()
+
+    if (updates?.sku) {
       const existingSKU = await Item.findOne({
         sku: updates.sku,
+        retailerId: user.userId,
         _id: { $ne: id }
       })
 
       if (existingSKU) {
-        return NextResponse.json(
-          { error: "SKU already exists" },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: "SKU already exists" }, { status: 400 })
       }
     }
 
-    const updated = await Item.findByIdAndUpdate(id, updates, {
-      new: true
-    })
-
-    const product = await Item.findByIdAndUpdate(
-      id,
+    const updated = await Item.findOneAndUpdate(
       {
-        sellingPrice,
-        taxRate
+        _id: id,
+        retailerId: user.userId // 🔥 SECURITY FIX
       },
+      updates,
       { new: true }
     )
 
-    if (!product) {
-      return NextResponse.json(
-        { error: "Product not found" },
-        { status: 404 }
-      )
+    if (!updated) {
+      return NextResponse.json({ error: "Not found or unauthorized" }, { status: 404 })
     }
 
     return NextResponse.json(updated)
 
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Server error" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

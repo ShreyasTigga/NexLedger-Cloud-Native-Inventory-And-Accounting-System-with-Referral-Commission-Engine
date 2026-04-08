@@ -1,21 +1,44 @@
 import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import SalesInvoice from "@/models/salesInvoice"
+import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  await dbConnect()
+  try {
+    await dbConnect()
 
-  const invoice = await SalesInvoice.findById(params.id)
+    const user = getUserFromRequest(req)
 
-  if (!invoice) {
+    // AUTH CHECK
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
+
+    // MULTI-TENANT SAFE QUERY
+    const invoice = await SalesInvoice.findOne({
+      _id: params.id,
+      retailerId: user.userId
+    })
+
+    if (!invoice) {
+      return NextResponse.json(
+        { error: "Invoice not found or unauthorized" },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json(invoice)
+
+  } catch (err: any) {
     return NextResponse.json(
-      { error: "Invoice not found" },
-      { status: 404 }
+      { error: err.message || "Server error" },
+      { status: 500 }
     )
   }
-
-  return NextResponse.json(invoice)
 }

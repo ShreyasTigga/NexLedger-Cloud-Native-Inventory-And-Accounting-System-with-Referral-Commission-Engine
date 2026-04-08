@@ -1,42 +1,87 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import SalesInvoice from "@/models/salesInvoice"
+import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
-export async function GET() {
-  await dbConnect()
+export async function GET(req: NextRequest) {
+  try {
+    await dbConnect()
 
-  const revenueData = await SalesInvoice.aggregate([
-    {
-      $group: {
-        _id: null,
-        total: { $sum: "$totalAmount" }
-      }
+    const user = getUserFromRequest(req)
+
+    if (!user || user.role !== "retailer") {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      )
     }
-  ])
 
-  const totalSales = await SalesInvoice.countDocuments()
+    const retailerId = user.userId
 
-  const invoices = await SalesInvoice.find()
+    // 🔥 SINGLE AGGREGATION PIPELINE (FAST)
+    const stats = await SalesInvoice.aggregate([
+      {
+        $match: { retailerId }
+      },
+      {
+        $facet: {
 
-  let totalCGST = 0
-  let totalSGST = 0
+          // 💰 Total Revenue
+          revenue: [
+            {
+              $group: {
+                _id: null,
+                total: { $sum: "$totalAmount" }
+              }
+            }
+          ],
 
-  invoices.forEach(inv => {
-    inv.items.forEach((item: any) => {
-      totalCGST += item.gstAmount / 2
-      totalSGST += item.gstAmount / 2
+          // 📦 Total Sales Count
+          salesCount: [
+            {
+              $count: "count"
+            }
+          ],
+
+          // 🧾 GST Calculation
+          gst: [
+            { $unwind: "$items" },
+            {
+              $group: {
+                _id: null,
+                totalCGST: {
+                  $sum: { $divide: ["$items.gstAmount", 2] }
+                },
+                totalSGST: {
+                  $sum: { $divide: ["$items.gstAmount", 2] }
+                }
+              }
+            }
+          ],
+
+          // 🕒 Recent Invoices
+          recent: [
+            { $sort: { createdAt: -1 } },
+            { $limit: 5 }
+          ]
+        }
+      }
+    ])
+
+    const result = stats[0]
+
+    return NextResponse.json({
+      totalRevenue: result.revenue[0]?.total || 0,
+      totalSales: result.salesCount[0]?.count || 0,
+      totalCGST: result.gst[0]?.totalCGST || 0,
+      totalSGST: result.gst[0]?.totalSGST || 0,
+      recentInvoices: result.recent || []
     })
-  })
 
-  const recentInvoices = await SalesInvoice.find()
-    .sort({ createdAt: -1 })
-    .limit(5)
-
-  return NextResponse.json({
-    totalRevenue: revenueData[0]?.total || 0,
-    totalSales,
-    totalCGST,
-    totalSGST,
-    recentInvoices
-  })
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Server error" },
+      { status: 500 }
+    )
+  }
 }

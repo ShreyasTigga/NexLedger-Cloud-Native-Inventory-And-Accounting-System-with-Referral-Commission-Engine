@@ -22,22 +22,34 @@ const PurchaseItemSchema = new Schema({
 
 const PurchaseInvoiceSchema = new Schema(
   {
+    retailerId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true
+    },
+
     invoiceNumber: {
       type: String,
       required: true
     },
+
     supplierName: {
       type: String,
       trim: true
     },
+
     totalAmount: {
       type: Number,
       required: true
     },
+
     items: [PurchaseItemSchema]
   },
   { timestamps: true }
 )
+
+PurchaseInvoiceSchema.index({ retailerId: 1, createdAt: -1 })
 
 const PurchaseInvoice =
   models.PurchaseInvoice ||

@@ -1,8 +1,9 @@
 import mongoose, { Schema, Document, models, model } from "mongoose"
 
 export interface StockMovementDocument extends Document {
+  retailerId: mongoose.Types.ObjectId
   itemId: mongoose.Types.ObjectId
-  type: string
+  type: "purchase" | "sale" | "adjustment"
   quantity: number
   reference: string
   createdAt: Date
@@ -10,6 +11,13 @@ export interface StockMovementDocument extends Document {
 
 const StockMovementSchema = new Schema<StockMovementDocument>(
   {
+    retailerId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true
+    },
+
     itemId: {
       type: Schema.Types.ObjectId,
       ref: "Item",
@@ -22,15 +30,19 @@ const StockMovementSchema = new Schema<StockMovementDocument>(
       required: true
     },
 
-    quantity: Number,
+    quantity: {
+      type: Number,
+      required: true
+    },
 
-    reference: String
+    reference: {
+      type: String
+    }
   },
   { timestamps: true }
 )
 
-const StockMovement =
-  (models.StockMovement as mongoose.Model<StockMovementDocument>) ||
-  model<StockMovementDocument>("StockMovement", StockMovementSchema)
+StockMovementSchema.index({ retailerId: 1, itemId: 1 })
 
-export default StockMovement
+export default models.StockMovement ||
+  model<StockMovementDocument>("StockMovement", StockMovementSchema)

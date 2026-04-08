@@ -1,13 +1,27 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import Item from "@/models/item"
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     await dbConnect()
 
+    const { searchParams } = new URL(req.url)
+
+    const retailerId = searchParams.get("retailerId")
+
+    if (!retailerId) {
+      return NextResponse.json(
+        { error: "Retailer ID required" },
+        { status: 400 }
+      )
+    }
+
     const products = await Item.find(
-      { stockQuantity: { $gt: 0 } }, // only available products
+      {
+        retailerId, // 🔥 MULTI-TENANT FIX
+        stockQuantity: { $gt: 0 }
+      },
       {
         name: 1,
         sellingPrice: 1,
@@ -20,7 +34,7 @@ export async function GET() {
 
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || "Server error" },
+      { error: err.message },
       { status: 500 }
     )
   }

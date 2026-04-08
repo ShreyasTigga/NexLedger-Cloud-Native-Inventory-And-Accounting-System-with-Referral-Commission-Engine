@@ -5,7 +5,6 @@ interface SalesItem {
   name: string
   quantity: number
   price: number
-
   taxRate: number
   cgst: number
   sgst: number
@@ -14,10 +13,8 @@ interface SalesItem {
 }
 
 export interface SalesInvoiceDocument extends Document {
+  retailerId: mongoose.Types.ObjectId
   customerId: mongoose.Types.ObjectId
-
-  referredBy?: mongoose.Types.ObjectId   // ✅ MOVE HERE
-
   items: SalesItem[]
   totalAmount: number
   status: string
@@ -26,28 +23,25 @@ export interface SalesInvoiceDocument extends Document {
 
 const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
   {
+    retailerId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true
+    },
+
     customerId: {
       type: Schema.Types.ObjectId,
       ref: "Customer",
       required: true
     },
 
-    referredBy: {
-      type: Schema.Types.ObjectId,
-      ref: "Customer"
-    },
-
     items: [
       {
-        itemId: {
-          type: Schema.Types.ObjectId,
-          ref: "Item",
-          required: true
-        },
+        itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true },
         name: String,
         quantity: Number,
         price: Number,
-
         taxRate: Number,
         cgst: Number,
         sgst: Number,
@@ -70,8 +64,8 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
   { timestamps: true }
 )
 
-const SalesInvoice =
-  (models.SalesInvoice as mongoose.Model<SalesInvoiceDocument>) ||
-  model<SalesInvoiceDocument>("SalesInvoice", SalesInvoiceSchema)
+// 🔥 compound index (fast queries)
+SalesInvoiceSchema.index({ retailerId: 1, createdAt: -1 })
 
-export default SalesInvoice
+export default models.SalesInvoice ||
+  model<SalesInvoiceDocument>("SalesInvoice", SalesInvoiceSchema)
