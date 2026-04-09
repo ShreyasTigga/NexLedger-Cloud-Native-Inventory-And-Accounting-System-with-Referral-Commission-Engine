@@ -7,8 +7,14 @@ export async function POST(req: NextRequest) {
   try {
     await dbConnect()
 
-    const { name, email, phone, password } = await req.json()
+    let { name, email, phone, password } = await req.json()
 
+    // 🔥 Normalize
+    name = name?.trim()
+    email = email?.toLowerCase().trim()
+    phone = phone?.trim()
+
+    // 🔴 VALIDATION
     if (!name || !password) {
       return NextResponse.json(
         { error: "Name and password required" },
@@ -23,6 +29,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: "Password must be at least 6 characters" },
+        { status: 400 }
+      )
+    }
+
+    // 🔍 Check existing user
     const existingUser = await User.findOne({
       $or: [{ email }, { phone }]
     })
@@ -34,10 +48,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // 🔐 Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // 🔥 Create USER (retailer)
-    await User.create({
+    // 🔥 Create RETAILER
+    const user = await User.create({
       name,
       email,
       phone,
@@ -47,14 +62,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       {
-        message: "Retailer registered successfully"
+        message: "Retailer registered successfully",
+        userId: user._id // 🔥 useful for onboarding
       },
       { status: 201 }
     )
 
   } catch (err: any) {
+    console.error("RETAILER REGISTER ERROR:", err)
+
     return NextResponse.json(
-      { error: err.message },
+      { error: err.message || "Server error" },
       { status: 500 }
     )
   }

@@ -3,52 +3,44 @@ import dbConnect from "@/lib/mongodb"
 
 import Customer from "@/models/customer"
 import ReferralEarning from "@/models/referralEarning"
-import { verifyToken } from "@/lib/jwt"
+import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
 export async function GET(req: NextRequest) {
   try {
     await dbConnect()
 
-    const token = req.cookies.get("token")?.value
+    const user = getUserFromRequest(req)
 
-    if (!token) {
+    // 🔐 AUTH CHECK
+    if (!user || user.role !== "customer") {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       )
     }
 
-    const decoded: any = verifyToken(token)
+    const customerId = user.customerId
 
-    if (!decoded) {
+    // ================= CUSTOMER =================
+    const customer = await Customer.findById(customerId).lean()
+
+    if (!customer) {
       return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 401 }
-      )
-    }
-
-    const userId = decoded.userId
-
-    // ================= USER =================
-    const user = await Customer.findById(userId).lean()
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
+        { error: "Customer not found" },
         { status: 404 }
       )
     }
 
     // ================= CHILDREN =================
     const children = await Customer.find({
-      referredBy: user._id
+      referredBy: customer._id
     })
-      .select("name email")
+      .select("name email referralCode")
       .lean()
 
     // ================= EARNINGS =================
     const earnings = await ReferralEarning.find({
-      userId: user._id
+      userId: customer._id
     })
       .sort({ createdAt: -1 })
       .limit(20)
@@ -56,13 +48,13 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        referralCode: user.referralCode,
-        walletBalance: user.walletBalance,
-        referredBy: user.referredBy
+        id: customer._id,
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone,
+        referralCode: customer.referralCode,
+        walletBalance: customer.walletBalance,
+        referredBy: customer.referredBy
       },
       children,
       earnings
@@ -70,7 +62,7 @@ export async function GET(req: NextRequest) {
 
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message },
+      { error: err.message || "Server error" },
       { status: 500 }
     )
   }

@@ -18,7 +18,6 @@ export async function GET(req: NextRequest) {
 
     const retailerId = user.userId
 
-    // 🔥 SINGLE AGGREGATION PIPELINE (FAST)
     const stats = await SalesInvoice.aggregate([
       {
         $match: { retailerId }
@@ -59,22 +58,29 @@ export async function GET(req: NextRequest) {
             }
           ],
 
-          // 🕒 Recent Invoices
+          // 🕒 Recent Invoices (OPTIMIZED)
           recent: [
             { $sort: { createdAt: -1 } },
-            { $limit: 5 }
+            { $limit: 5 },
+            {
+              $project: {
+                _id: 1,
+                totalAmount: 1,
+                createdAt: 1
+              }
+            }
           ]
         }
       }
     ])
 
-    const result = stats[0]
+    const result = stats?.[0] || {}
 
     return NextResponse.json({
-      totalRevenue: result.revenue[0]?.total || 0,
-      totalSales: result.salesCount[0]?.count || 0,
-      totalCGST: result.gst[0]?.totalCGST || 0,
-      totalSGST: result.gst[0]?.totalSGST || 0,
+      totalRevenue: result.revenue?.[0]?.total || 0,
+      totalSales: result.salesCount?.[0]?.count || 0,
+      totalCGST: result.gst?.[0]?.totalCGST || 0,
+      totalSGST: result.gst?.[0]?.totalSGST || 0,
       recentInvoices: result.recent || []
     })
 

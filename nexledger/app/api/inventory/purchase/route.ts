@@ -16,35 +16,57 @@ export async function POST(req: NextRequest) {
 
     const user = getUserFromRequest(req)
 
-    // 🔐 AUTH CHECK
     if (!user || user.role !== "retailer") {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { invoiceNumber, supplierName, items } = await req.json()
+    const body = await req.json()
 
-    // 🔴 Validation
+    let { invoiceNumber, supplierName, items } = body
+
+    invoiceNumber = invoiceNumber?.trim()
+    supplierName = supplierName?.trim()
+
     if (!invoiceNumber || !items || items.length === 0) {
-      return NextResponse.json(
-        { error: "Invalid invoice data" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Invalid invoice data" }, { status: 400 })
+    }
+
+    // 🔒 Prevent duplicate invoice number per retailer
+    const existingInvoice = await PurchaseInvoice.findOne({
+      invoiceNumber,
+      retailerId: user.userId
+    })
+
+    if (existingInvoice) {
+      return NextResponse.json({ error: "Invoice already exists" }, { status: 400 })
     }
 
     await session.withTransaction(async () => {
       let invoiceTotal = 0
 
+      const processedItems: any[] = []
+
+      // 🔥 Prevent duplicate product entries
+      const seenProducts = new Set()
+
       for (const entry of items) {
         const { productId, quantity, purchasePrice } = entry
 
-        if (!productId || quantity <= 0 || purchasePrice <= 0) {
+        if (
+          !productId ||
+          !mongoose.Types.ObjectId.isValid(productId) ||
+          quantity <= 0 ||
+          purchasePrice <= 0
+        ) {
           throw new Error("Invalid item data")
         }
 
-        // 🔒 Ensure product belongs to retailer
+        if (seenProducts.has(productId)) {
+          throw new Error("Duplicate product in invoice")
+        }
+
+        seenProducts.add(productId)
+
         const product = await Item.findOne({
           _id: productId,
           retailerId: user.userId
@@ -58,21 +80,18 @@ export async function POST(req: NextRequest) {
         const oldCost = product.costPrice
         const totalQty = oldQty + quantity
 
-        // 🔥 Weighted average cost
         let newCostPrice = purchasePrice
 
         if (oldQty > 0) {
           newCostPrice =
-            ((oldQty * oldCost) + (quantity * purchasePrice)) /
-            totalQty
+            ((oldQty * oldCost) + (quantity * purchasePrice)) / totalQty
         }
 
-        // ✅ Update inventory
+        const totalAmount = quantity * purchasePrice
+
+        // 🔄 Update item
         await Item.findOneAndUpdate(
-          {
-            _id: productId,
-            retailerId: user.userId
-          },
+          { _id: productId, retailerId: user.userId },
           {
             stockQuantity: totalQty,
             costPrice: newCostPrice
@@ -80,11 +99,11 @@ export async function POST(req: NextRequest) {
           { session }
         )
 
-        // ✅ Stock movement
+        // 📦 Stock movement
         await StockMovement.create(
           [
             {
-              retailerId: user.userId, // 🔥 REQUIRED
+              retailerId: user.userId,
               itemId: productId,
               type: "purchase",
               quantity,
@@ -94,18 +113,25 @@ export async function POST(req: NextRequest) {
           { session }
         )
 
-        invoiceTotal += quantity * purchasePrice
+        processedItems.push({
+          productId,
+          quantity,
+          purchasePrice,
+          totalAmount
+        })
+
+        invoiceTotal += totalAmount
       }
 
-      // ✅ Create purchase invoice
+      // 🧾 Create invoice
       await PurchaseInvoice.create(
         [
           {
-            retailerId: user.userId, // 🔥 REQUIRED
+            retailerId: user.userId,
             invoiceNumber,
             supplierName,
             totalAmount: invoiceTotal,
-            items
+            items: processedItems
           }
         ],
         { session }
@@ -137,12 +163,8 @@ export async function GET(req: NextRequest) {
 
     const user = getUserFromRequest(req)
 
-    // 🔐 AUTH CHECK
     if (!user || user.role !== "retailer") {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { searchParams } = new URL(req.url)
@@ -151,7 +173,6 @@ export async function GET(req: NextRequest) {
     const limit = 10
     const skip = (page - 1) * limit
 
-    // 🔥 FILTER BY RETAILER
     const query = {
       retailerId: user.userId
     }
@@ -160,6 +181,7 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
+      .select("invoiceNumber supplierName totalAmount createdAt")
       .lean()
 
     const total = await PurchaseInvoice.countDocuments(query)

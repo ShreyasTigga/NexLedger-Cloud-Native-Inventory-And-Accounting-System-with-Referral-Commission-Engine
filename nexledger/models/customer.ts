@@ -2,7 +2,8 @@ import mongoose, { Schema, Document, models, model } from "mongoose"
 
 export interface CustomerDocument extends Document {
   userId: mongoose.Types.ObjectId
-
+  retailerId: mongoose.Types.ObjectId
+  
   referralCode: string
   referredBy?: mongoose.Types.ObjectId
 
@@ -20,6 +21,13 @@ const CustomerSchema = new Schema<CustomerDocument>(
       ref: "User",
       required: true,
       unique: true
+    },
+
+    retailerId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true
     },
 
     referralCode: {

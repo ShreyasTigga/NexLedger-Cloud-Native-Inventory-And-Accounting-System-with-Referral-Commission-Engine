@@ -27,14 +27,13 @@ export async function GET(req: NextRequest) {
     const limit = 10
     const skip = (page - 1) * limit
 
-    const query = {
-      retailerId: user.userId
-    }
+    const query = { retailerId: user.userId }
 
     const invoices = await SalesInvoice.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
+      .select("customerId totalAmount createdAt") // 🔥 optimized
       .lean()
 
     const total = await SalesInvoice.countDocuments(query)
@@ -45,10 +44,7 @@ export async function GET(req: NextRequest) {
     })
 
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
 
@@ -61,38 +57,58 @@ export async function POST(req: NextRequest) {
 
     const user = getUserFromRequest(req)
 
-    // 🔐 AUTH
     if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { items, customerId } = await req.json()
 
-    if (!items || items.length === 0) {
+    if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "Cart is empty" }, { status: 400 })
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+      return NextResponse.json({ error: "Invalid customer ID" }, { status: 400 })
     }
 
     await session.withTransaction(async () => {
 
-      // 🔥 Validate customer
-      const customer = await Customer.findById(customerId).session(session)
+      const customer = await Customer.findOne({
+        _id: customerId,
+        retailerId: user.userId
+      }).session(session)
 
       if (!customer) {
         throw new Error("Customer not found")
       }
+
+      const seenProducts = new Set()
 
       let processedItems: any[] = []
       let totalAmount = 0
       let totalCGST = 0
       let totalSGST = 0
 
-      // ================= ITEMS =================
-
       for (const item of items) {
+
+        if (
+          !item.productId ||
+          !mongoose.Types.ObjectId.isValid(item.productId) ||
+          !item.quantity ||
+          item.quantity <= 0
+        ) {
+          throw new Error("Invalid item data")
+        }
+
+        if (seenProducts.has(item.productId)) {
+          throw new Error("Duplicate product in cart")
+        }
+
+        seenProducts.add(item.productId)
 
         const product = await Item.findOne({
           _id: item.productId,
-          retailerId: user.userId // 🔥 MULTI-TENANT
+          retailerId: user.userId
         }).session(session)
 
         if (!product) {
@@ -107,13 +123,11 @@ export async function POST(req: NextRequest) {
         const taxRate = product.taxRate
 
         const base = price * item.quantity
-
         const cgst = taxRate / 2
         const sgst = taxRate / 2
 
         const cgstAmount = (base * cgst) / 100
         const sgstAmount = (base * sgst) / 100
-
         const gstAmount = cgstAmount + sgstAmount
         const total = base + gstAmount
 
@@ -133,35 +147,19 @@ export async function POST(req: NextRequest) {
           total
         })
 
-        // 🔻 Reduce stock
         await Item.findOneAndUpdate(
-          {
-            _id: product._id,
-            retailerId: user.userId
-          },
+          { _id: product._id, retailerId: user.userId },
           { $inc: { stockQuantity: -item.quantity } },
-          { session }
-        )
-
-        // 📦 Stock movement
-        await StockMovement.create(
-          [{
-            retailerId: user.userId,
-            itemId: product._id,
-            type: "sale",
-            quantity: -item.quantity,
-            reference: "SALE"
-          }],
           { session }
         )
       }
 
-      // ================= INVOICE =================
-
+      // 🔥 INCLUDE referredBy
       const invoice = await SalesInvoice.create(
         [{
-          retailerId: user.userId, // 🔥 REQUIRED
+          retailerId: user.userId,
           customerId,
+          referredBy: customer.referredBy, // 🔥 important
           items: processedItems,
           totalAmount
         }],
@@ -170,7 +168,16 @@ export async function POST(req: NextRequest) {
 
       const invoiceId = invoice[0]._id
 
-      // ================= REFERRAL =================
+      await StockMovement.insertMany(
+        processedItems.map(item => ({
+          retailerId: user.userId,
+          itemId: item.itemId,
+          type: "sale",
+          quantity: -item.quantity,
+          reference: invoiceId.toString()
+        })),
+        { session }
+      )
 
       await processReferralCommission({
         saleId: invoiceId,
@@ -178,8 +185,6 @@ export async function POST(req: NextRequest) {
         totalAmount,
         session
       })
-
-      // ================= LEDGER =================
 
       await LedgerEntry.insertMany(
         [

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import Item from "@/models/item"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
+import mongoose from "mongoose"
 
 // ================= CREATE =================
 export async function POST(req: NextRequest) {
@@ -21,20 +22,12 @@ export async function POST(req: NextRequest) {
     const barcode = body.barcode?.trim()
     const category = body.category?.trim()
 
-    const {
-      brand,
-      unit,
-      costPrice,
-      sellingPrice,
-      taxRate,
-      reorderLevel
-    } = body
+    const { brand, unit, costPrice, sellingPrice, taxRate, reorderLevel } = body
 
     if (!name || !sku || !category || costPrice == null || sellingPrice == null) {
       return NextResponse.json({ error: "Required fields missing" }, { status: 400 })
     }
 
-    // ✅ SKU unique per retailer
     const existingSKU = await Item.findOne({
       sku,
       retailerId: user.userId
@@ -44,7 +37,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "SKU already exists" }, { status: 400 })
     }
 
-    // ✅ Barcode unique per retailer
     if (barcode) {
       const existingBarcode = await Item.findOne({
         barcode,
@@ -85,7 +77,7 @@ export async function GET(req: NextRequest) {
 
     const user = getUserFromRequest(req)
 
-    if (!user) {
+    if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -93,7 +85,7 @@ export async function GET(req: NextRequest) {
 
     const search = searchParams.get("search") || ""
     const page = Number(searchParams.get("page")) || 1
-    const limit = 5
+    const limit = 10
     const skip = (page - 1) * limit
 
     const query: any = {
@@ -109,8 +101,10 @@ export async function GET(req: NextRequest) {
     }
 
     const products = await Item.find(query)
+      .sort({ createdAt: -1 }) // 🔥 better UX
       .skip(skip)
       .limit(limit)
+      .select("name sku category sellingPrice stockQuantity") // 🔥 optimized
       .lean()
 
     const total = await Item.countDocuments(query)
@@ -132,15 +126,19 @@ export async function DELETE(req: NextRequest) {
 
     const user = getUserFromRequest(req)
 
-    if (!user) {
+    if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { id } = await req.json()
 
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 })
+    }
+
     const item = await Item.findOneAndDelete({
       _id: id,
-      retailerId: user.userId // 🔥 SECURITY FIX
+      retailerId: user.userId
     })
 
     if (!item) {
@@ -161,13 +159,21 @@ export async function PUT(req: NextRequest) {
 
     const user = getUserFromRequest(req)
 
-    if (!user) {
+    if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { id, updates } = await req.json()
 
-    if (updates?.sku) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 })
+    }
+
+    if (!updates || Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No updates provided" }, { status: 400 })
+    }
+
+    if (updates.sku) {
       const existingSKU = await Item.findOne({
         sku: updates.sku,
         retailerId: user.userId,
@@ -182,7 +188,7 @@ export async function PUT(req: NextRequest) {
     const updated = await Item.findOneAndUpdate(
       {
         _id: id,
-        retailerId: user.userId // 🔥 SECURITY FIX
+        retailerId: user.userId
       },
       updates,
       { new: true }
