@@ -24,8 +24,16 @@ export async function POST(req: NextRequest) {
 
     const { brand, unit, costPrice, sellingPrice, taxRate, reorderLevel } = body
 
+    // ✅ ADDED: supplier input (no change to existing destructuring)
+    const defaultSupplierId = body.defaultSupplierId
+
     if (!name || !sku || !category || costPrice == null || sellingPrice == null) {
       return NextResponse.json({ error: "Required fields missing" }, { status: 400 })
+    }
+
+    // ✅ ADDED: validate supplierId (safe check)
+    if (defaultSupplierId && !mongoose.Types.ObjectId.isValid(defaultSupplierId)) {
+      return NextResponse.json({ error: "Invalid supplier ID" }, { status: 400 })
     }
 
     const existingSKU = await Item.findOne({
@@ -60,7 +68,10 @@ export async function POST(req: NextRequest) {
       sellingPrice: Number(sellingPrice),
       taxRate: Number(taxRate) || 0,
       reorderLevel: Number(reorderLevel) || 5,
-      stockQuantity: 0
+      stockQuantity: 0,
+
+      // ✅ ADDED: supplier saved
+      defaultSupplierId: defaultSupplierId || undefined
     })
 
     return NextResponse.json(item, { status: 201 })
@@ -104,7 +115,7 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 }) // 🔥 better UX
       .skip(skip)
       .limit(limit)
-      .select("name sku category sellingPrice stockQuantity") // 🔥 optimized
+      .select("name sku category sellingPrice taxRate stockQuantity defaultSupplierId")
       .lean()
 
     const total = await Item.countDocuments(query)

@@ -1,12 +1,13 @@
-import { NextRequest } from "next/server"
-import { verifyToken } from "./jwt"
+import { verifyAccessToken } from "./jwt"
 
-export function getUserFromRequest(req: NextRequest) {
-  const token = req.cookies.get("token")?.value
+export function getUserFromRequest(req: any) {
+  const token = req.cookies.get("accessToken")?.value
 
   if (!token) return null
 
-  const decoded: any = verifyToken(token)
-
-  return decoded
+  try {
+    return verifyAccessToken(token)
+  } catch {
+    return null
+  }
 }

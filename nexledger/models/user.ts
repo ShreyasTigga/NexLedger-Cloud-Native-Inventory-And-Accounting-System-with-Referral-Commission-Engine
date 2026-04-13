@@ -6,13 +6,28 @@ export interface UserDocument extends Document {
   phone?: string
   password: string
   role: "customer" | "retailer"
+  refreshToken?: string | null
+
+  createdAt: Date
+  updatedAt: Date
 }
 
 const UserSchema = new Schema<UserDocument>(
   {
-    name: { type: String, required: true },
-    email: String,
-    phone: String,
+    name: {
+      type: String,
+      required: true
+    },
+
+    email: {
+      type: String,
+      sparse: true
+    },
+
+    phone: {
+      type: String,
+      sparse: true
+    },
 
     password: {
       type: String,
@@ -23,9 +38,16 @@ const UserSchema = new Schema<UserDocument>(
       type: String,
       enum: ["customer", "retailer"],
       required: true
+    },
+
+    refreshToken: {
+      type: String,
+      default: null
     }
   },
-  { timestamps: true }
+  {
+    timestamps: true
+  }
 )
 
 const User =

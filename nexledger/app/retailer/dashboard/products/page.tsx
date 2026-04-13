@@ -17,6 +17,12 @@ interface Product {
   reorderLevel: number
 }
 
+// ✅ ADDED
+interface Supplier {
+  _id: string
+  name: string
+}
+
 export default function ProductsPage() {
 
   const [products, setProducts] = useState<Product[]>([])
@@ -25,6 +31,9 @@ export default function ProductsPage() {
   const [totalPages, setTotalPages] = useState(1)
 
   const [editingProduct, setEditingProduct] = useState<any>(null)
+
+  // ✅ ADDED
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
 
   const [form, setForm] = useState({
     name: "",
@@ -36,22 +45,40 @@ export default function ProductsPage() {
     costPrice: "",
     sellingPrice: "",
     taxRate: "",
-    reorderLevel: ""
+    reorderLevel: "",
+
+    // ✅ ADDED
+    defaultSupplierId: ""
   })
 
   // ✅ Fetch products
   const fetchProducts = async () => {
     const res = await fetch(
-      `/api/inventory/items?search=${search}&page=${page}`
+      `/api/inventory/items?search=${search}&page=${page}`,
+      { credentials: "include" } // ✅ ADDED
     )
     const data = await res.json()
     setProducts(data.products)
     setTotalPages(data.totalPages)
   }
 
+  // ✅ ADDED: fetch suppliers
+  const fetchSuppliers = async () => {
+    const res = await fetch("/api/suppliers", {
+      credentials: "include"
+    })
+    const data = await res.json()
+    setSuppliers(data.suppliers || [])
+  }
+
   useEffect(() => {
     fetchProducts()
   }, [search, page])
+
+  // ✅ ADDED
+  useEffect(() => {
+    fetchSuppliers()
+  }, [])
 
   // ✅ Form change
   const handleChange = (e: any) => {
@@ -65,6 +92,7 @@ export default function ProductsPage() {
     const res = await fetch("/api/inventory/items", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include", // ✅ ADDED
       body: JSON.stringify({
         ...form,
         costPrice: Number(form.costPrice),
@@ -85,7 +113,8 @@ export default function ProductsPage() {
         costPrice: "",
         sellingPrice: "",
         taxRate: "",
-        reorderLevel: ""
+        reorderLevel: "",
+        defaultSupplierId: "" // ✅ ADDED
       })
 
       fetchProducts()
@@ -100,6 +129,7 @@ export default function ProductsPage() {
     await fetch("/api/inventory/items", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
+      credentials: "include", // ✅ ADDED
       body: JSON.stringify({ id })
     })
 
@@ -118,10 +148,13 @@ export default function ProductsPage() {
       headers: {
         "Content-Type": "application/json"
       },
+      credentials: "include",
       body: JSON.stringify({
         id: editingProduct._id,
+        updates: {
         sellingPrice: Number(editingProduct.sellingPrice),
         taxRate: Number(editingProduct.taxRate)
+        }
       })
     })
 
@@ -199,6 +232,31 @@ export default function ProductsPage() {
             className="border rounded-lg p-2"
             value={form.reorderLevel} onChange={handleChange} />
 
+          {/* ✅ ADDED: Supplier Dropdown */}
+          <select
+            name="defaultSupplierId"
+            className="border rounded-lg p-2"
+            value={form.defaultSupplierId}
+            onChange={handleChange}
+          >
+            <option value="">Select Supplier (Optional)</option>
+
+            {suppliers.map((s) => (
+              <option key={s._id} value={s._id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+
+          {/* ✅ OPTIONAL */}
+          <button
+            type="button"
+            onClick={() => window.location.href = "/retailer/dashboard/suppliers"}
+            className="text-blue-600 text-sm"
+          >
+            + Add New Supplier
+          </button>
+
           <button
             type="submit"
             className="md:col-span-3 bg-blue-600 text-white py-2 rounded-lg"
@@ -274,30 +332,30 @@ export default function ProductsPage() {
             <h2 className="text-lg font-semibold">Edit Product</h2>
 
             <input
-              type="number"
-              placeholder="Selling Price"
-              value={editingProduct.sellingPrice}
-              onChange={(e) =>
-                setEditingProduct({
-                  ...editingProduct,
-                  sellingPrice: e.target.value
-                })
-              }
-              className="w-full border p-2 rounded"
-            />
+  type="number"
+  placeholder="Selling Price"
+  value={editingProduct?.sellingPrice || ""}
+  onChange={(e) =>
+    setEditingProduct({
+      ...editingProduct,
+      sellingPrice: e.target.value
+    })
+  }
+  className="w-full border p-2 rounded"
+/>
 
-            <input
-              type="number"
-              placeholder="GST (%)"
-              value={editingProduct.taxRate}
-              onChange={(e) =>
-                setEditingProduct({
-                  ...editingProduct,
-                  taxRate: e.target.value
-                })
-              }
-              className="w-full border p-2 rounded"
-            />
+<input
+  type="number"
+  placeholder="GST (%)"
+  value={editingProduct?.taxRate || ""}
+  onChange={(e) =>
+    setEditingProduct({
+      ...editingProduct,
+      taxRate: e.target.value
+    })
+  }
+  className="w-full border p-2 rounded"
+/>
 
             <div className="flex justify-end gap-3">
 

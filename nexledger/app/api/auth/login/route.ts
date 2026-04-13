@@ -3,7 +3,7 @@ import dbConnect from "@/lib/mongodb"
 import User from "@/models/user"
 import Customer from "@/models/customer"
 import bcrypt from "bcryptjs"
-import { signToken } from "@/lib/jwt"
+import { signAccessToken, signRefreshToken } from "@/lib/jwt"
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     const identifier = body.identifier?.trim()
     const password = body.password
 
-    //  VALIDATION
+    // VALIDATION
     if (!identifier || !password) {
       return NextResponse.json(
         { error: "Missing credentials" },
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 🔍 Find user
+    // FIND USER
     const user = await User.findOne({
       $or: [{ email: identifier }, { phone: identifier }]
     })
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    //  Check password
+    // CHECK PASSWORD
     const isMatch = await bcrypt.compare(password, user.password)
 
     if (!isMatch) {
@@ -44,7 +44,6 @@ export async function POST(req: NextRequest) {
     }
 
     // ================= ROLE CONTEXT =================
-
     let extraPayload: any = {}
 
     if (user.role === "customer") {
@@ -65,25 +64,45 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    //  Create JWT (WITH CONTEXT)
-    const token = signToken({
+    // ================= TOKENS =================
+
+    const accessToken = signAccessToken({
       userId: user._id,
       role: user.role,
       ...extraPayload
     })
+
+    const refreshToken = signRefreshToken({
+      userId: user._id
+    })
+
+    // OPTIONAL: store refresh token in DB (recommended)
+    user.refreshToken = refreshToken
+    await user.save()
 
     const res = NextResponse.json({
       message: "Login successful",
       role: user.role
     })
 
-    //  Secure cookie
-    res.cookies.set("token", token, {
+    // ================= COOKIES =================
+
+    // 🔐 Access Token (short-lived)
+    res.cookies.set("accessToken", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 // 1 day
+      maxAge: 60 * 15 // 15 minutes
+    })
+
+    // 🔐 Refresh Token (long-lived)
+    res.cookies.set("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7 // 7 days
     })
 
     return res

@@ -9,23 +9,31 @@ export async function GET(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    let user
 
-    // 🔐 AUTH CHECK
+    // 🔐 SAFE AUTH
+    try {
+      user = getUserFromRequest(req)
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
+
     if (!user || user.role !== "retailer") {
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { success: false, error: "Unauthorized" },
         { status: 401 }
       )
     }
 
     const retailerId = user.userId
 
-    // ================= TOTAL REVENUE =================
+    // ================= DATA =================
+
     const revenueData = await SalesInvoice.aggregate([
-      {
-        $match: { retailerId } // 🔥 FIX
-      },
+      { $match: { retailerId } },
       {
         $group: {
           _id: null,
@@ -36,34 +44,24 @@ export async function GET(req: NextRequest) {
 
     const totalRevenue = revenueData[0]?.totalRevenue || 0
 
-    // ================= TOTAL SALES =================
-    const totalSales = await SalesInvoice.countDocuments({
-      retailerId // 🔥 FIX
-    })
+    const totalSales = await SalesInvoice.countDocuments({ retailerId })
 
-    // ================= LOW STOCK =================
     const lowStockItems = await Item.find({
-      retailerId, // 🔥 FIX
+      retailerId,
       $expr: { $lte: ["$stockQuantity", "$reorderLevel"] }
     })
       .select("name stockQuantity reorderLevel")
       .limit(5)
       .lean()
 
-    // ================= RECENT SALES =================
-    const recentSales = await SalesInvoice.find({
-      retailerId // 🔥 FIX
-    })
+    const recentSales = await SalesInvoice.find({ retailerId })
       .sort({ createdAt: -1 })
       .limit(5)
       .select("totalAmount createdAt")
       .lean()
 
-    // ================= TOP PRODUCTS =================
     const topProducts = await SalesInvoice.aggregate([
-      {
-        $match: { retailerId } // 🔥 FIX
-      },
+      { $match: { retailerId } },
       { $unwind: "$items" },
       {
         $group: {
@@ -76,16 +74,19 @@ export async function GET(req: NextRequest) {
     ])
 
     return NextResponse.json({
-      totalRevenue,
-      totalSales,
-      lowStockItems,
-      recentSales,
-      topProducts
+      success: true,
+      data: {
+        totalRevenue,
+        totalSales,
+        lowStockItems,
+        recentSales,
+        topProducts
+      }
     })
 
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || "Server error" },
+      { success: false, error: err.message || "Server error" },
       { status: 500 }
     )
   }

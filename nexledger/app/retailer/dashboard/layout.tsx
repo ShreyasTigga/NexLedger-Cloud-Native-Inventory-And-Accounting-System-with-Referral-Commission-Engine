@@ -17,26 +17,35 @@ export default function DashboardLayout({
 }: {
   children: ReactNode
 }) {
-const pathname = usePathname()
+  const pathname = usePathname()
 
-const BASE = "/retailer/dashboard"
+  const BASE = "/retailer/dashboard"
 
-const navItems = [
-  { name: "Dashboard", href: BASE, icon: LayoutDashboard },
-  { name: "Products", href: `${BASE}/products`, icon: Package },
-  { name: "Purchase", href: `${BASE}/purchase`, icon: ShoppingCart },
-  { name: "Sales", href: `${BASE}/sales`, icon: ShoppingCart },
-  { name: "Ledger", href: `${BASE}/ledger`, icon: BookOpen },
-  { name: "Referral Config", href: `${BASE}/referral`, icon: Settings }
-]
+  const navItems = [
+    { name: "Dashboard", href: BASE, icon: LayoutDashboard },
+    { name: "Products", href: `${BASE}/products`, icon: Package },
+    { name: "Purchase", href: `${BASE}/purchase`, icon: ShoppingCart },
+    { name: "Sales", href: `${BASE}/sales`, icon: ShoppingCart },
+    { name: "Ledger", href: `${BASE}/ledger`, icon: BookOpen },
+    { name: "Referral Config", href: `${BASE}/referral`, icon: Settings }
+  ]
+
+  const handleLogout = async () => {
+  await fetch("/api/auth/logout", {
+    method: "POST",
+    credentials: "include"
+  })
+
+  window.location.href = "/retailer/login"
+}
 
   const userName = "Admin User"
 
   return (
-    <div className="min-h-screen flex bg-gray-100">
+    <div className="h-screen flex bg-gray-100 overflow-hidden">
 
-      {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md border-r p-6 flex flex-col justify-between">
+      {/* Sidebar (FIXED) */}
+      <aside className="w-64 bg-white shadow-md border-r p-6 flex flex-col justify-between fixed left-0 top-0 h-full">
 
         <div>
           {/* Logo */}
@@ -71,25 +80,28 @@ const navItems = [
           </nav>
         </div>
 
-        {/* Logout Button */}
-        <button className="flex items-center gap-2 text-red-500 hover:text-red-600 transition">
-          <LogOut size={18} />
-          Logout
-        </button>
+        {/* Logout */}
+        <button
+  onClick={handleLogout}
+  className="flex items-center gap-2 text-red-500 hover:text-red-600 transition"
+>
+  <LogOut size={18} />
+  Logout
+</button>
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col ml-64 h-full">
 
-        {/* Top Navbar */}
-        <header className="bg-white shadow-sm border-b px-8 py-4 flex justify-between items-center">
+        {/* Top Navbar (STICKY OPTIONAL) */}
+        <header className="bg-white shadow-sm border-b px-8 py-4 flex justify-between items-center sticky top-0 z-10">
           <div className="text-sm text-gray-600">
             Welcome, <span className="font-medium">{userName}</span>
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="p-10">
+        {/* Scrollable Content */}
+        <main className="flex-1 overflow-y-auto p-10">
           {children}
         </main>
       </div>
