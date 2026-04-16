@@ -15,11 +15,13 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // Auto-fill referral
+  // Auto-fill referral from URL
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const ref = params.get("ref")
-    if (ref) setReferralCode(ref)
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search)
+      const ref = params.get("ref")
+      if (ref) setReferralCode(ref)
+    }
   }, [])
 
   async function handleSubmit(e: FormEvent) {
@@ -33,6 +35,7 @@ export default function RegisterPage() {
         headers: {
           "Content-Type": "application/json"
         },
+        credentials: "include", // ✅ important
         body: JSON.stringify({
           name,
           email,
@@ -45,13 +48,14 @@ export default function RegisterPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error)
+        setError(data.error || "Registration failed")
         return
       }
 
-      router.push("/auth/login")
+      router.push("/customer/login") // ✅ fixed
 
     } catch (err) {
+      console.error(err)
       setError("Something went wrong")
     } finally {
       setLoading(false)
@@ -108,10 +112,11 @@ export default function RegisterPage() {
 
           <input
             type="text"
-            placeholder="Referral Code (optional)"
+            placeholder="Referral Code (required)"
             className="w-full border p-2 rounded"
             value={referralCode}
             onChange={(e) => setReferralCode(e.target.value)}
+            required
           />
 
           <button
@@ -123,11 +128,15 @@ export default function RegisterPage() {
           </button>
         </form>
 
+        <p className="text-xs text-gray-500 text-center">
+          You need a referral code to join. Ask your inviter.
+        </p>
+
         <p className="text-sm text-center">
           Already have an account?{" "}
           <span
             className="text-blue-600 cursor-pointer"
-            onClick={() => router.push("/auth/login")}
+            onClick={() => router.push("/customer/login")}
           >
             Login
           </span>

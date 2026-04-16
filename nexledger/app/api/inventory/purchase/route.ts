@@ -115,6 +115,7 @@ export async function POST(req: NextRequest) {
 
         processedItems.push({
           productId,
+          productName: product.name,
           quantity,
           purchasePrice,
           totalAmount
@@ -181,7 +182,7 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .select("invoiceNumber supplierName totalAmount createdAt")
+      .select("invoiceNumber supplierName totalAmount createdAt items") 
       .lean()
 
     const total = await PurchaseInvoice.countDocuments(query)

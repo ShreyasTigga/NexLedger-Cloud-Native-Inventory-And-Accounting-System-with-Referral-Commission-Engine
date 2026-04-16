@@ -8,6 +8,8 @@ export interface UserDocument extends Document {
   role: "customer" | "retailer"
   refreshToken?: string | null
 
+  referralCode?: string // ✅ NEW
+
   createdAt: Date
   updatedAt: Date
 }
@@ -21,7 +23,8 @@ const UserSchema = new Schema<UserDocument>(
 
     email: {
       type: String,
-      sparse: true
+      sparse: true,
+      lowercase: true // ✅ good practice
     },
 
     phone: {
@@ -43,6 +46,12 @@ const UserSchema = new Schema<UserDocument>(
     refreshToken: {
       type: String,
       default: null
+    },
+
+    referralCode: {
+      type: String,
+      unique: true,   
+      sparse: true    
     }
   },
   {

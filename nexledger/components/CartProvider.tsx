@@ -15,6 +15,7 @@ interface CartContextType {
   removeFromCart: (productId: string) => void
   clearCart: () => void
   decreaseQuantity: (productId: string) => void
+  updateQuantity: (productId: string, quantity: number) => void
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
@@ -24,14 +25,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([])
 
   useEffect(() => {
-    const storedCart = localStorage.getItem("cart")
-    if (storedCart) {
-      setCart(JSON.parse(storedCart))
+    if (typeof window !== "undefined") {
+      const storedCart = localStorage.getItem("cart")
+      if (storedCart) {
+        setCart(JSON.parse(storedCart))
+      }
     }
   }, [])
 
   useEffect(() => {
-    localStorage.setItem("cart", JSON.stringify(cart))
+    if (typeof window !== "undefined") {
+      localStorage.setItem("cart", JSON.stringify(cart))
+    }
   }, [cart])
 
   const addToCart = (item: CartItem) => {
@@ -41,12 +46,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (existing) {
         return prev.map(p =>
           p.productId === item.productId
-            ? { ...p, quantity: p.quantity + item.quantity }
+            ? { ...p, quantity: p.quantity + (item.quantity || 1) }
             : p
         )
       }
 
-      return [...prev, item]
+      return [...prev, { ...item, quantity: item.quantity || 1 }]
     })
   }
 
@@ -66,6 +71,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     )
   }
 
+  const updateQuantity = (productId: string, quantity: number) => {
+    setCart(prev =>
+      prev.map(item =>
+        item.productId === productId
+          ? { ...item, quantity }
+          : item
+      )
+    )
+  }
+
   const clearCart = () => {
     setCart([])
   }
@@ -77,7 +92,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         addToCart,
         removeFromCart,
         clearCart,
-        decreaseQuantity
+        decreaseQuantity,
+        updateQuantity
       }}
     >
       {children}

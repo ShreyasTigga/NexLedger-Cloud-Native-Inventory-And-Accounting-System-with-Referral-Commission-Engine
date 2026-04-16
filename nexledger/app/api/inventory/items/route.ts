@@ -112,7 +112,8 @@ export async function GET(req: NextRequest) {
     }
 
     const products = await Item.find(query)
-      .sort({ createdAt: -1 }) // 🔥 better UX
+      .populate("defaultSupplierId", "name")
+      .sort({ createdAt: -1 }) 
       .skip(skip)
       .limit(limit)
       .select("name sku category sellingPrice taxRate stockQuantity defaultSupplierId")

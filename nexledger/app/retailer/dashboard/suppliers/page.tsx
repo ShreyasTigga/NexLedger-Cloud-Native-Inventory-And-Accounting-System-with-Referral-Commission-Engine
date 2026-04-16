@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 
 interface Supplier {
   _id: string
@@ -19,6 +20,8 @@ export default function SupplierPage() {
     email: ""
   })
 
+  const router = useRouter()
+
   const fetchSuppliers = async () => {
     const res = await fetch("/api/suppliers", {
       credentials: "include"
@@ -36,23 +39,26 @@ export default function SupplierPage() {
   }
 
   const handleSubmit = async (e: any) => {
-    e.preventDefault()
+  e.preventDefault()
 
-    const res = await fetch("/api/suppliers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(form)
-    })
+  const res = await fetch("/api/suppliers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(form)
+  })
 
-    if (res.ok) {
-      setForm({ name: "", phone: "", email: "" })
-      fetchSuppliers()
-    } else {
-      const err = await res.json()
-      alert(err.error)
-    }
+  if (res.ok) {
+    setForm({ name: "", phone: "", email: "" })
+
+    // Navigate ONLY on success
+    router.replace("/retailer/dashboard/products")
+    
+  } else {
+    const err = await res.json()
+    alert(err.error)
   }
+}
 
   return (
     <div className="max-w-5xl mx-auto space-y-10">

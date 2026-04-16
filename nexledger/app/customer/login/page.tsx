@@ -12,41 +12,38 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
+async function handleSubmit(e: FormEvent) {
+  e.preventDefault()
+  setError(null)
+  setLoading(true)
 
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ email, password })
-      })
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      credentials: "include", // ✅ important
+      body: JSON.stringify({ email, password })
+    })
 
-      const data = await res.json()
+    const data = await res.json()
 
-      if (!res.ok) {
-        setError(data.error || "Login failed")
-        setLoading(false)
-        return
-      }
-
-      // Store token instead of full user
-      localStorage.setItem("token", data.token)
-
-      // Redirect to store (customer side)
-      router.push("/store")
-
-    } catch (err) {
-      console.error(err)
-      setError("Something went wrong")
-    } finally {
+    if (!res.ok) {
+      setError(data.error || "Login failed")
       setLoading(false)
+      return
     }
+
+    router.push("/customer/shop") // ✅ clean
+
+  } catch (err) {
+    console.error(err)
+    setError("Something went wrong")
+  } finally {
+    setLoading(false)
   }
+}
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">

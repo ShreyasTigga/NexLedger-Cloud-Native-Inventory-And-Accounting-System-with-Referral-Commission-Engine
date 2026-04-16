@@ -6,6 +6,12 @@ const PurchaseItemSchema = new Schema({
     ref: "Item",
     required: true
   },
+
+  productName: {   
+    type: String,
+    required: true
+  }, 
+
   quantity: {
     type: Number,
     required: true

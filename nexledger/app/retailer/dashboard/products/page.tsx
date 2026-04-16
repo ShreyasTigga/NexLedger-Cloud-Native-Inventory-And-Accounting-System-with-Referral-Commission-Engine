@@ -15,9 +15,9 @@ interface Product {
   taxRate: number
   stockQuantity: number
   reorderLevel: number
+  defaultSupplierId?: string
 }
 
-// ✅ ADDED
 interface Supplier {
   _id: string
   name: string
@@ -32,8 +32,17 @@ export default function ProductsPage() {
 
   const [editingProduct, setEditingProduct] = useState<any>(null)
 
-  // ✅ ADDED
+  const [viewProduct, setViewProduct] = useState<any>(null)
+
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+
+  const [categories, setCategories] = useState<string[]>([
+  "Grocery",
+  "Electronics",
+  "Clothing"
+])
+
+const [showCustomCategory, setShowCustomCategory] = useState(false)
 
   const [form, setForm] = useState({
     name: "",
@@ -46,30 +55,45 @@ export default function ProductsPage() {
     sellingPrice: "",
     taxRate: "",
     reorderLevel: "",
-
-    // ✅ ADDED
     defaultSupplierId: ""
   })
 
   // ✅ Fetch products
-  const fetchProducts = async () => {
-    const res = await fetch(
-      `/api/inventory/items?search=${search}&page=${page}`,
-      { credentials: "include" } // ✅ ADDED
-    )
-    const data = await res.json()
-    setProducts(data.products)
-    setTotalPages(data.totalPages)
+const fetchProducts = async () => {
+  const res = await fetch(
+    `/api/inventory/items?search=${search}&page=${page}`,
+    { credentials: "include" }
+  )
+
+  // 🔥 HANDLE UNAUTHORIZED
+  if (res.status === 401) {
+    window.location.href = "/retailer/login"
+    return
   }
 
+  const data = await res.json()
+
+  // 🔥 SAFE SET
+  setProducts(data.products || [])
+  setTotalPages(data.totalPages || 1)
+}
+
   // ✅ ADDED: fetch suppliers
-  const fetchSuppliers = async () => {
-    const res = await fetch("/api/suppliers", {
-      credentials: "include"
-    })
-    const data = await res.json()
-    setSuppliers(data.suppliers || [])
+const fetchSuppliers = async () => {
+  const res = await fetch("/api/suppliers", {
+    credentials: "include"
+  })
+
+  // 🔥 HANDLE UNAUTHORIZED
+  if (res.status === 401) {
+    window.location.href = "/retailer/login"
+    return
   }
+
+  const data = await res.json()
+
+  setSuppliers(data.suppliers || [])
+}
 
   useEffect(() => {
     fetchProducts()
@@ -80,6 +104,18 @@ export default function ProductsPage() {
     fetchSuppliers()
   }, [])
 
+  useEffect(() => {
+  const handleFocus = () => {
+    fetchSuppliers()
+  }
+
+  window.addEventListener("focus", handleFocus)
+
+  return () => {
+    window.removeEventListener("focus", handleFocus)
+  }
+}, [])
+
   // ✅ Form change
   const handleChange = (e: any) => {
     setForm({ ...form, [e.target.name]: e.target.value })
@@ -88,6 +124,10 @@ export default function ProductsPage() {
   // ✅ Create product
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+      if (form.category && !categories.includes(form.category)) {
+    setCategories([...categories, form.category])
+  }
 
     const res = await fetch("/api/inventory/items", {
       method: "POST",
@@ -169,6 +209,11 @@ export default function ProductsPage() {
     }
   }
 
+  const getSupplierName = (id: string) => {
+    const s = suppliers.find((sup) => sup._id === id)
+    return s?.name || "Not assigned"
+  }
+
   return (
     <div className="max-w-6xl mx-auto space-y-10">
 
@@ -195,9 +240,45 @@ export default function ProductsPage() {
             className="border rounded-lg p-2"
             value={form.barcode} onChange={handleChange} />
 
-          <input name="category" placeholder="Category"
-            className="border rounded-lg p-2"
-            value={form.category} onChange={handleChange} required />
+          <select
+  name="category"
+  value={form.category}
+  onChange={(e) => {
+    const value = e.target.value
+
+    if (value === "ADD_NEW") {
+      setShowCustomCategory(true)
+      setForm({ ...form, category: "" })
+    } else {
+      setShowCustomCategory(false)
+      setForm({ ...form, category: value })
+    }
+  }}
+  className="border p-2 rounded w-full"
+  required
+>
+  <option value="">Select Category</option>
+
+  {categories.map((cat) => (
+    <option key={cat} value={cat}>
+      {cat}
+    </option>
+  ))}
+
+  <option value="ADD_NEW">+ Add New Category</option>
+</select>
+
+{showCustomCategory && (
+  <input
+    type="text"
+    placeholder="Enter new category"
+    value={form.category}
+    onChange={(e) =>
+      setForm({ ...form, category: e.target.value })
+    }
+    className="border p-2 rounded w-full mt-2"
+  />
+)}
 
           <input name="brand" placeholder="Brand"
             className="border rounded-lg p-2"
@@ -297,11 +378,19 @@ export default function ProductsPage() {
                 <td className="p-3">{p.sku}</td>
                 <td className="p-3">{p.category}</td>
                 <td className="p-3">₹{p.sellingPrice}</td>
-                <td className="p-3">{p.taxRate}%</td>
+                <td className="p-3">{p.taxRate ?? 0}%</td>
                 <td className="p-3">{p.stockQuantity}</td>
 
                 <td className="p-3">
                   <div className="flex gap-3">
+
+                    <button
+                      className="text-green-600"
+                      onClick={() => setViewProduct(p)}
+                    >
+                      View
+                    </button>
+
                     <button
                       className="text-blue-600"
                       onClick={() => openEdit(p)}
@@ -315,6 +404,7 @@ export default function ProductsPage() {
                     >
                       Delete
                     </button>
+
                   </div>
                 </td>
               </tr>
@@ -323,26 +413,66 @@ export default function ProductsPage() {
         </table>
       </div>
 
-      {/* Edit Modal */}
+            {/* ✅ VIEW MODAL */}
+      {viewProduct && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-xl w-[500px] space-y-4">
+
+            <h2 className="text-lg font-semibold">Product Details</h2>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+
+              <p><strong>Name:</strong> {viewProduct.name}</p>
+              <p><strong>SKU:</strong> {viewProduct.sku}</p>
+              <p><strong>Barcode:</strong> {viewProduct.barcode || "-"}</p>
+              <p><strong>Category:</strong> {viewProduct.category}</p>
+              <p><strong>Brand:</strong> {viewProduct.brand || "-"}</p>
+              <p><strong>Unit:</strong> {viewProduct.unit}</p>
+
+              <p><strong>Cost Price:</strong> ₹{viewProduct.costPrice}</p>
+              <p><strong>Selling Price:</strong> ₹{viewProduct.sellingPrice}</p>
+              <p><strong>GST:</strong> {viewProduct.taxRate ?? 0}%</p>
+
+              <p><strong>Stock:</strong> {viewProduct.stockQuantity}</p>
+              <p><strong>Reorder Level:</strong> {viewProduct.reorderLevel}</p>
+
+              <p className="col-span-2">
+                <strong>Supplier:</strong>{" "}
+                {getSupplierName(viewProduct.defaultSupplierId)}
+              </p>
+
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => setViewProduct(null)}
+                className="px-4 py-2 bg-gray-200 rounded"
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* EDIT MODAL */}
       {editingProduct && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
 
           <div className="bg-white p-6 rounded-xl w-96 space-y-4">
 
-            <h2 className="text-lg font-semibold">Edit Product</h2>
-
             <input
-  type="number"
-  placeholder="Selling Price"
-  value={editingProduct?.sellingPrice || ""}
-  onChange={(e) =>
-    setEditingProduct({
-      ...editingProduct,
-      sellingPrice: e.target.value
-    })
-  }
-  className="w-full border p-2 rounded"
-/>
+              type="number"
+              value={editingProduct?.sellingPrice || ""}
+              onChange={(e) =>
+                setEditingProduct({
+                  ...editingProduct,
+                  sellingPrice: e.target.value
+                })
+              }
+              className="w-full border p-2 rounded"
+            />
 
 <input
   type="number"

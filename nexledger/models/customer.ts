@@ -3,9 +3,11 @@ import mongoose, { Schema, Document, models, model } from "mongoose"
 export interface CustomerDocument extends Document {
   userId: mongoose.Types.ObjectId
   retailerId: mongoose.Types.ObjectId
-  
+
   referralCode: string
   referredBy?: mongoose.Types.ObjectId
+
+  level: number // 🔥 NEW (VERY IMPORTANT)
 
   walletBalance: number
 
@@ -15,7 +17,6 @@ export interface CustomerDocument extends Document {
 
 const CustomerSchema = new Schema<CustomerDocument>(
   {
-    // Link to User
     userId: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -33,12 +34,19 @@ const CustomerSchema = new Schema<CustomerDocument>(
     referralCode: {
       type: String,
       required: true,
-      unique: true
+      unique: true,
+      sparse: true // ✅ safety
     },
 
     referredBy: {
       type: Schema.Types.ObjectId,
-      ref: "Customer"
+      ref: "Customer",
+      index: true // 🔥 faster traversal
+    },
+
+    level: {
+      type: Number,
+      default: 0 // 🔥 root customer = level 0
     },
 
     walletBalance: {
@@ -49,8 +57,8 @@ const CustomerSchema = new Schema<CustomerDocument>(
   { timestamps: true }
 )
 
-// Index for referral tree traversal
-CustomerSchema.index({ referredBy: 1 })
+// 🔥 compound index (very useful later)
+CustomerSchema.index({ retailerId: 1, level: 1 })
 
 const Customer =
   (models.Customer as mongoose.Model<CustomerDocument>) ||
