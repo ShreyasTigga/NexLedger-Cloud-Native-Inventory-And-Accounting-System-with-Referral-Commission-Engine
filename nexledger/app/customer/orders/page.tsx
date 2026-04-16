@@ -2,12 +2,20 @@
 
 import { useCart } from "@/components/CartProvider"
 import { useRouter } from "next/navigation"
+import { useState } from "react"
 
 export default function CartPage() {
 
   const router = useRouter()
+  const [loading, setLoading] = useState(false)
 
-  const { cart, removeFromCart, clearCart, addToCart, decreaseQuantity } = useCart()
+  const {
+    cart,
+    removeFromCart,
+    clearCart,
+    addToCart,
+    decreaseQuantity
+  } = useCart()
 
   const total = cart.reduce(
     (sum: number, item) => sum + item.price * item.quantity,
@@ -16,38 +24,59 @@ export default function CartPage() {
 
   const checkout = async () => {
 
-    // Validate stock first
-    for (const item of cart) {
+    if (cart.length === 0) return
 
-      const res = await fetch(`/api/store/products/${item.productId}`)
-      const product = await res.json()
+    setLoading(true)
 
-      if (product.stockQuantity < item.quantity) {
-        alert(
-          `${product.name} only has ${product.stockQuantity} items left in stock`
-        )
+    try {
+      // ✅ STOCK VALIDATION
+      for (const item of cart) {
+        const res = await fetch(`/api/store/products/${item.productId}`)
+        const product = await res.json()
+
+        if (product.stockQuantity < item.quantity) {
+          alert(
+            `${product.name} only has ${product.stockQuantity} items left`
+          )
+          setLoading(false)
+          return
+        }
+      }
+
+      // ✅ CORRECT PAYLOAD
+      const res = await fetch("/api/sales", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        credentials: "include", // 🔥 IMPORTANT
+        body: JSON.stringify({
+          items: cart.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity
+          }))
+        })
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        alert(data.error)
+        setLoading(false)
         return
       }
-    }
 
-    const res = await fetch("/api/sales", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        customerName: "Walk-in Customer",
-        items: cart
-      })
-    })
-
-    const data = await res.json()
-
-    if (res.ok) {
+      // ✅ CLEAR CART
       clearCart()
-      router.push(`/store/order/${data._id}`)
-    } else {
-      alert(data.error)
+
+      // ✅ REDIRECT TO INVOICE PAGE
+      router.push(`/customer/order/${data.invoiceId}`)
+
+    } catch (err) {
+      console.error(err)
+      alert("Checkout failed")
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -95,7 +124,7 @@ export default function CartPage() {
                   const product = await res.json()
 
                   if (item.quantity >= product.stockQuantity) {
-                    alert("Cannot add more than available stock")
+                    alert("Max stock reached")
                     return
                   }
 
@@ -139,9 +168,10 @@ export default function CartPage() {
 
             <button
               onClick={checkout}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+              disabled={loading}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
             >
-              Checkout
+              {loading ? "Processing..." : "Checkout"}
             </button>
 
             <button

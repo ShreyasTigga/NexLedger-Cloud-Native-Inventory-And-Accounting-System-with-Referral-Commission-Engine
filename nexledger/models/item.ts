@@ -13,7 +13,7 @@ export interface ItemDocument extends Document {
   stockQuantity: number
   reorderLevel: number
   defaultSupplierId?: mongoose.Types.ObjectId
-  retailerId?: mongoose.Types.ObjectId
+  retailerId: mongoose.Types.ObjectId
   createdAt: Date
   updatedAt: Date
 }
@@ -22,26 +22,32 @@ const ItemSchema = new Schema<ItemDocument>(
   {
     name: {
       type: String,
-      required: true
+      required: true,
+      trim: true
     },
 
+    // ✅ FIXED: removed global unique
     sku: {
       type: String,
       required: true,
-      unique: true
+      trim: true
     },
 
+    // ✅ barcode NOT unique (real-world correct)
     barcode: {
-      type: String
+      type: String,
+      trim: true
     },
 
     category: {
       type: String,
-      required: true
+      required: true,
+      trim: true
     },
 
     brand: {
-      type: String
+      type: String,
+      trim: true
     },
 
     unit: {
@@ -50,29 +56,35 @@ const ItemSchema = new Schema<ItemDocument>(
       required: true
     },
 
+    // ✅ Prevent negative values
     costPrice: {
       type: Number,
-      required: true
+      required: true,
+      min: 0
     },
 
     sellingPrice: {
       type: Number,
-      required: true
+      required: true,
+      min: 0
     },
 
     taxRate: {
       type: Number,
-      default: 0
+      default: 0,
+      min: 0
     },
 
     stockQuantity: {
       type: Number,
-      default: 0
+      default: 0,
+      min: 0 // ✅ important
     },
 
     reorderLevel: {
       type: Number,
-      default: 5
+      default: 5,
+      min: 0
     },
 
     defaultSupplierId: {
@@ -83,7 +95,8 @@ const ItemSchema = new Schema<ItemDocument>(
     retailerId: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true
+      required: true,
+      index: true // ✅ faster queries
     }
   },
   {
@@ -91,8 +104,22 @@ const ItemSchema = new Schema<ItemDocument>(
   }
 )
 
+/* ================= INDEXES ================= */
+
+// ✅ Multi-tenant SKU uniqueness (MOST IMPORTANT)
+ItemSchema.index({ retailerId: 1, sku: 1 }, { unique: true })
+
+// ✅ Fast category filtering
 ItemSchema.index({ category: 1 })
+
+// ✅ Text search
 ItemSchema.index({ name: "text" })
+
+// ✅ Faster search inside retailer
+ItemSchema.index({ retailerId: 1, name: 1 })
+
+// ✅ Optional: barcode search
+ItemSchema.index({ barcode: 1 })
 
 const Item =
   (models.Item as mongoose.Model<ItemDocument>) ||

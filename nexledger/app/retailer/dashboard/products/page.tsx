@@ -39,7 +39,11 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState<string[]>([
   "Grocery",
   "Electronics",
-  "Clothing"
+  "Clothing",
+  "Dairy",
+  "BodyCare",
+  "Luxury",
+  "Others"
 ])
 
 const [showCustomCategory, setShowCustomCategory] = useState(false)

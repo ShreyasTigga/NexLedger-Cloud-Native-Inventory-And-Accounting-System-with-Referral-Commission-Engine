@@ -20,16 +20,19 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
       <body
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <CartProvider>
-          {children}
+          <main className="min-h-screen bg-gray-100 p-4 md:p-6">
+            {children}
+          </main>
         </CartProvider>
       </body>
     </html>

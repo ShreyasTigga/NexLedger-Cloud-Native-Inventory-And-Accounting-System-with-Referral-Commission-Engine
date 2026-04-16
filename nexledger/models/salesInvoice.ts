@@ -6,8 +6,13 @@ interface SalesItem {
   quantity: number
   price: number
   taxRate: number
+
   cgst: number
   sgst: number
+
+  cgstAmount: number
+  sgstAmount: number
+
   gstAmount: number
   total: number
 }
@@ -15,10 +20,15 @@ interface SalesItem {
 export interface SalesInvoiceDocument extends Document {
   retailerId: mongoose.Types.ObjectId
   customerId: mongoose.Types.ObjectId
+  referredBy?: mongoose.Types.ObjectId
+
   items: SalesItem[]
+
   totalAmount: number
-  status: string
+  status: "pending" | "paid" | "shipped" | "delivered"
+
   createdAt: Date
+  updatedAt: Date
 }
 
 const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
@@ -33,26 +43,88 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
     customerId: {
       type: Schema.Types.ObjectId,
       ref: "Customer",
-      required: true
+      required: true,
+      index: true
+    },
+
+    referredBy: {
+      type: Schema.Types.ObjectId,
+      ref: "Customer"
     },
 
     items: [
       {
-        itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true },
-        name: String,
-        quantity: Number,
-        price: Number,
-        taxRate: Number,
-        cgst: Number,
-        sgst: Number,
-        gstAmount: Number,
-        total: Number
+        itemId: {
+          type: Schema.Types.ObjectId,
+          ref: "Item",
+          required: true
+        },
+
+        name: {
+          type: String,
+          required: true
+        },
+
+        quantity: {
+          type: Number,
+          required: true,
+          min: 1
+        },
+
+        price: {
+          type: Number,
+          required: true,
+          min: 0
+        },
+
+        taxRate: {
+          type: Number,
+          required: true,
+          min: 0
+        },
+
+        cgst: {
+          type: Number,
+          required: true,
+          min: 0
+        },
+
+        sgst: {
+          type: Number,
+          required: true,
+          min: 0
+        },
+
+        cgstAmount: {
+          type: Number,
+          required: true,
+          min: 0
+        },
+
+        sgstAmount: {
+          type: Number,
+          required: true,
+          min: 0
+        },
+
+        gstAmount: {
+          type: Number,
+          required: true,
+          min: 0
+        },
+
+        total: {
+          type: Number,
+          required: true,
+          min: 0
+        }
       }
     ],
 
     totalAmount: {
       type: Number,
-      required: true
+      required: true,
+      min: 0
     },
 
     status: {
@@ -61,11 +133,24 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
       default: "paid"
     }
   },
-  { timestamps: true }
+  {
+    timestamps: true
+  }
 )
 
-// 🔥 compound index (fast queries)
+// 🔥 INDEXES (IMPORTANT FOR PERFORMANCE)
+
+// Retailer dashboard
 SalesInvoiceSchema.index({ retailerId: 1, createdAt: -1 })
 
-export default models.SalesInvoice ||
+// Customer order history
+SalesInvoiceSchema.index({ customerId: 1, createdAt: -1 })
+
+// Optional: faster referral tracking
+SalesInvoiceSchema.index({ referredBy: 1 })
+
+const SalesInvoice =
+  (models.SalesInvoice as mongoose.Model<SalesInvoiceDocument>) ||
   model<SalesInvoiceDocument>("SalesInvoice", SalesInvoiceSchema)
+
+export default SalesInvoice

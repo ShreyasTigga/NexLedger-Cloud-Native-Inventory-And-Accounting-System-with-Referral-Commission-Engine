@@ -30,7 +30,7 @@ export default function ShopPage() {
     const res = await fetch(`/api/store/products?${params.toString()}`)
     const data = await res.json()
 
-    setProducts(data)
+     setProducts(data.products || []) 
   }
 
   useEffect(() => {
