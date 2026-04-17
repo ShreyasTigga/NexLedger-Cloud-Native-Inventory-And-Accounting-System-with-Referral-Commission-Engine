@@ -1,11 +1,13 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { ShoppingCart } from "lucide-react"
 import { useCart } from "@/components/CartProvider"
 
 export default function CustomerNavbar() {
 
+  const pathname = usePathname()
   const { cart } = useCart()
 
   const cartCount = cart.reduce(
@@ -13,37 +15,49 @@ export default function CustomerNavbar() {
     0
   )
 
+  // 🔥 helper for active link
+  const linkClass = (path: string) =>
+    `hover:text-blue-600 ${
+      pathname === path ? "text-blue-600 font-semibold" : "text-gray-700"
+    }`
+
   return (
-    <header className="bg-white shadow-sm border-b">
+    <header className="bg-white shadow-sm border-b sticky top-0 z-50">
 
       <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
 
         {/* Logo */}
-        <Link href="/customer/dashboard" className="text-xl font-bold">
+        <Link
+          href="/customer/shop"
+          className="text-xl font-bold text-blue-600"
+        >
           NexLedger
         </Link>
 
         {/* Navigation */}
-        <nav className="flex items-center gap-6">
+        <nav className="flex items-center gap-6 text-sm">
 
-          <Link href="/customer/shop">
+          <Link href="/customer/shop" className={linkClass("/customer/shop")}>
             Shop
           </Link>
 
-          <Link href="/customer/orders">
+          <Link href="/customer/orders" className={linkClass("/customer/orders")}>
             Orders
           </Link>
 
-          <Link href="/customer/wallet">
+          <Link href="/customer/wallet" className={linkClass("/customer/wallet")}>
             Wallet
           </Link>
 
-          {/* Cart Icon */}
+          <Link href="/customer/earnings" className={linkClass("/customer/earnings")}>
+            Earnings
+          </Link>
+
+          {/* Cart */}
           <Link
             href="/customer/cart"
-            className="relative"
+            className="relative hover:text-blue-600"
           >
-
             <ShoppingCart size={22} />
 
             {cartCount > 0 && (
@@ -51,7 +65,6 @@ export default function CustomerNavbar() {
                 {cartCount}
               </span>
             )}
-
           </Link>
 
         </nav>

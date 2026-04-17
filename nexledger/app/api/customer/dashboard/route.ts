@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     //  AUTH CHECK
     if (!user || user.role !== "customer") {

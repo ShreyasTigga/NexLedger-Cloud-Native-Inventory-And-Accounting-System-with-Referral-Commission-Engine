@@ -1,30 +1,39 @@
-export async function apiFetch(url: string, options: any = {}) {
-  let res = await fetch(url, {
-    credentials: "include",
-    ...options
-  })
-
-  // 🔁 Try refresh if access token expired
-  if (res.status === 401) {
-    const refreshRes = await fetch("/api/auth/refresh", {
-      method: "POST",
-      credentials: "include"
+export async function apiFetch(
+  url: string,
+  options: RequestInit = {}
+) {
+  try {
+    const res = await fetch(url, {
+      ...options,
+      credentials: "include", // ✅ always send cookies
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      }
     })
 
-    if (refreshRes.ok) {
-      // Retry original request
-      res = await fetch(url, {
-        credentials: "include",
-        ...options
-      })
-    }
-  }
+    let data = null
 
-  // ❌ Still failed → logout
-  if (!res.ok) {
-    window.location.href = "/retailer/login"
+    try {
+      data = await res.json()
+    } catch {
+      throw new Error("Invalid server response")
+    }
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        window.location.href = "/retailer/login"
+        return null
+      }
+
+      throw new Error(data?.error || "Request failed")
+    }
+
+    return data?.data ?? data
+
+  } catch (err: any) {
+    console.error("API ERROR:", err)
+    alert(err.message || "Something went wrong")
     return null
   }
-
-  return res.json()
 }

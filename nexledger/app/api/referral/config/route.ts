@@ -3,38 +3,35 @@ import dbConnect from "@/lib/mongodb"
 import ReferralConfig from "@/models/referralConfig"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
-// ================= GET =================
+// ================= GET CONFIG =================
 export async function GET(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const config = await ReferralConfig.findOne({
-      retailerId: user.userId,
-      isActive: true
-    }).lean()
+    const config = await ReferralConfig.findOne({ isActive: true })
 
     return NextResponse.json(config)
 
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || "Server error" },
+      { error: err.message },
       { status: 500 }
     )
   }
 }
 
-// ================= CREATE / UPDATE =================
+// ================= UPDATE CONFIG =================
 export async function POST(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -46,28 +43,25 @@ export async function POST(req: NextRequest) {
       levels,
       percentages,
       commissionType,
-      maxCommissionPerSale
+      maxCommissionPerSale,
+      isActive
     } = body
 
-    // 🔴 Validation
     if (!levels || !percentages || percentages.length !== levels) {
       return NextResponse.json(
-        { error: "Levels and percentages mismatch" },
+        { error: "Invalid levels/percentages" },
         { status: 400 }
       )
     }
 
-    // 🔥 deactivate old config (ONLY this retailer)
+    // 🔥 deactivate old config
     await ReferralConfig.updateMany(
-      {
-        retailerId: user.userId,
-        isActive: true
-      },
+      { isActive: true },
       { isActive: false }
     )
 
-    const config = await ReferralConfig.create({
-      retailerId: user.userId, // 🔥 KEY FIX
+    // 🔥 create new config
+    const newConfig = await ReferralConfig.create({
       levels,
       percentages,
       commissionType,
@@ -75,11 +69,11 @@ export async function POST(req: NextRequest) {
       isActive: true
     })
 
-    return NextResponse.json(config)
+    return NextResponse.json(newConfig)
 
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || "Server error" },
+      { error: err.message },
       { status: 500 }
     )
   }

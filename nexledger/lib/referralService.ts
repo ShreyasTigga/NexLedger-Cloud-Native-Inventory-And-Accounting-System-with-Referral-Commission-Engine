@@ -2,13 +2,13 @@ import Customer from "@/models/customer"
 import ReferralConfig from "@/models/referralConfig"
 import ReferralEarning from "@/models/referralEarning"
 import LedgerEntry from "@/models/ledgerEntry"
-import mongoose from "mongoose"
+import mongoose, { ClientSession } from "mongoose"
 
 interface Props {
   saleId: mongoose.Types.ObjectId
   customerId: mongoose.Types.ObjectId
   totalAmount: number
-  session?: mongoose.ClientSession
+  session?: ClientSession
 }
 
 export async function processReferralCommission({
@@ -18,10 +18,12 @@ export async function processReferralCommission({
   session
 }: Props) {
   try {
+    const dbSession = session || null
+
     // ================= CONFIG =================
     const config = await ReferralConfig.findOne({
       isActive: true
-    }).session(session || null)
+    }).session(dbSession)
 
     if (!config) return
 
@@ -33,20 +35,21 @@ export async function processReferralCommission({
     } = config
 
     // ================= CUSTOMER =================
-    const currentUser = await Customer.findById(customerId).session(session || null)
+    const currentUser = await Customer.findById(customerId)
+      .session(dbSession)
 
     if (!currentUser || !currentUser.referredBy) return
 
-    // ✅ FIX: allow undefined
     let parentId: mongoose.Types.ObjectId | undefined =
       currentUser.referredBy
 
-    // ================= TREE TRAVERSAL =================
+    // ================= TREE =================
     for (let level = 0; level < levels; level++) {
 
       if (!parentId) break
 
-      const parent = await Customer.findById(parentId).session(session || null)
+      const parent = await Customer.findById(parentId)
+        .session(dbSession)
 
       if (!parent) break
 
@@ -65,32 +68,27 @@ export async function processReferralCommission({
         commission = maxCommissionPerSale
       }
 
-      // Skip zero commissions
       if (commission <= 0) {
         parentId = parent.referredBy ?? undefined
         continue
       }
 
-      // ================= WALLET UPDATE =================
+      // ================= WALLET =================
       await Customer.findByIdAndUpdate(
         parent._id,
-        {
-          $inc: { walletBalance: commission }
-        },
+        { $inc: { walletBalance: commission } },
         { session }
       )
 
-      // ================= EARNING RECORD =================
+      // ================= EARNING =================
       await ReferralEarning.create(
-        [
-          {
-            userId: parent._id,
-            fromUserId: customerId,
-            level: level + 1,
-            amount: commission,
-            saleId
-          }
-        ],
+        [{
+          userId: parent._id,
+          fromUserId: customerId,
+          level: level + 1,
+          amount: commission,
+          saleId
+        }],
         { session }
       )
 
@@ -109,13 +107,13 @@ export async function processReferralCommission({
             account: "Customer Wallet",
             amount: commission,
             referenceId: saleId,
-            description: `Wallet credit`
+            description: "Wallet credit"
           }
         ],
         { session }
       )
 
-      // ================= MOVE UP TREE =================
+      // 🔁 move up
       parentId = parent.referredBy ?? undefined
     }
 

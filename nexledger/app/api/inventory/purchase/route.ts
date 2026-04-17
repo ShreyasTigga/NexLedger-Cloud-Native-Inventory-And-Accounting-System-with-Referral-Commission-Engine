@@ -6,6 +6,7 @@ import Item from "@/models/item"
 import PurchaseInvoice from "@/models/purchaseInvoice"
 import StockMovement from "@/models/stockMovement"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
+import Supplier from "@/models/supplier"
 
 // ================= CREATE PURCHASE =================
 export async function POST(req: NextRequest) {
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -162,7 +163,7 @@ export async function GET(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

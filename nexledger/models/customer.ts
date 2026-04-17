@@ -7,7 +7,7 @@ export interface CustomerDocument extends Document {
   referralCode: string
   referredBy?: mongoose.Types.ObjectId
 
-  level: number // 🔥 NEW (VERY IMPORTANT)
+  level: number 
 
   walletBalance: number
 
@@ -35,18 +35,18 @@ const CustomerSchema = new Schema<CustomerDocument>(
       type: String,
       required: true,
       unique: true,
-      sparse: true // ✅ safety
+      sparse: true 
     },
 
     referredBy: {
       type: Schema.Types.ObjectId,
       ref: "Customer",
-      index: true // 🔥 faster traversal
+      index: true 
     },
 
     level: {
       type: Number,
-      default: 0 // 🔥 root customer = level 0
+      default: 0 // 
     },
 
     walletBalance: {
@@ -57,7 +57,7 @@ const CustomerSchema = new Schema<CustomerDocument>(
   { timestamps: true }
 )
 
-// 🔥 compound index (very useful later)
+// compound index (very useful later)
 CustomerSchema.index({ retailerId: 1, level: 1 })
 
 const Customer =

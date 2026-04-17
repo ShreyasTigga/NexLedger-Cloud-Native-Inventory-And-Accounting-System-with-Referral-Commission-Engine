@@ -8,12 +8,15 @@ import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // ✅ FIXED
 ) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    // ✅ Extract properly (Next.js 16)
+    const { id } = await params
+
+    const user = await getUserFromRequest(req)
 
     // 🔐 AUTH CHECK
     if (!user) {
@@ -24,14 +27,14 @@ export async function GET(
     }
 
     // 🔴 Validate ID
-    if (!mongoose.Types.ObjectId.isValid(params.id)) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: "Invalid product ID" },
         { status: 400 }
       )
     }
 
-    let retailerId
+    let retailerId: mongoose.Types.ObjectId
 
     // 🧠 CUSTOMER FLOW
     if (user.role === "customer") {
@@ -51,7 +54,7 @@ export async function GET(
 
     // 🧠 RETAILER FLOW
     else if (user.role === "retailer") {
-      retailerId = user.userId
+      retailerId = new mongoose.Types.ObjectId(user.userId)
     }
 
     else {
@@ -61,10 +64,11 @@ export async function GET(
       )
     }
 
+    // 🔥 SECURE PRODUCT FETCH
     const product = await Item.findOne(
       {
-        _id: params.id,
-        retailerId // 🔥 SECURE
+        _id: id,
+        retailerId
       },
       {
         name: 1,

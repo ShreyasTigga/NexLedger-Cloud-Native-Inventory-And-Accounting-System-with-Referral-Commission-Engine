@@ -7,49 +7,40 @@ export default function ReferralConfigPage() {
   const [levels, setLevels] = useState(1)
   const [percentages, setPercentages] = useState<number[]>([0])
   const [commissionType, setCommissionType] = useState("percentage")
-  const [maxCommission, setMaxCommission] = useState("")
+  const [maxCap, setMaxCap] = useState<number | "">("")
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState("")
 
-  // ================= LOAD CONFIG =================
-  async function loadConfig() {
-    const res = await fetch("/api/referral/config")
-    const data = await res.json()
-
-    if (data) {
-      setLevels(data.levels)
-      setPercentages(data.percentages)
-      setCommissionType(data.commissionType)
-      setMaxCommission(data.maxCommissionPerSale || "")
-    }
-  }
-
+  // ================= FETCH =================
   useEffect(() => {
-    loadConfig()
+    fetch("/api/referral-config")
+      .then(res => res.json())
+      .then(data => {
+        if (!data) return
+
+        setLevels(data.levels)
+        setPercentages(data.percentages)
+        setCommissionType(data.commissionType)
+        setMaxCap(data.maxCommissionPerSale || "")
+      })
   }, [])
 
-  // ================= HANDLE LEVEL CHANGE =================
-  function handleLevelChange(val: number) {
-    setLevels(val)
+  // ================= LEVEL CHANGE =================
+  const handleLevelChange = (value: number) => {
+    setLevels(value)
 
-    const newArr = Array(val)
-      .fill(0)
-      .map((_, i) => percentages[i] || 0)
-
-    setPercentages(newArr)
+    const updated = Array.from({ length: value }, (_, i) => percentages[i] || 0)
+    setPercentages(updated)
   }
 
-  // ================= HANDLE % CHANGE =================
-  function updatePercentage(index: number, value: number) {
+  const updatePercentage = (index: number, value: number) => {
     const updated = [...percentages]
     updated[index] = value
     setPercentages(updated)
   }
 
-  // ================= SUBMIT =================
-  async function handleSubmit() {
+  // ================= SAVE =================
+  const saveConfig = async () => {
     setLoading(true)
-    setMessage("")
 
     const res = await fetch("/api/referral/config", {
       method: "POST",
@@ -60,119 +51,91 @@ export default function ReferralConfigPage() {
         levels,
         percentages,
         commissionType,
-        maxCommissionPerSale: maxCommission
-          ? Number(maxCommission)
-          : undefined
+        maxCommissionPerSale: maxCap || undefined,
+        isActive: true
       })
     })
 
     const data = await res.json()
 
     if (!res.ok) {
-      setMessage(data.error)
+      alert(data.error)
     } else {
-      setMessage("Config updated successfully ✅")
+      alert("Config saved successfully ✅")
     }
 
     setLoading(false)
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
 
       <h1 className="text-2xl font-semibold">
-        Referral System Settings
+        Referral Configuration
       </h1>
 
       {/* LEVELS */}
-      <div className="bg-white p-4 rounded-xl shadow">
-        <label className="block text-sm mb-2">
-          Number of Levels
-        </label>
-
+      <div>
+        <label className="block mb-1">Levels</label>
         <input
           type="number"
-          value={levels}
           min={1}
-          onChange={(e) =>
-            handleLevelChange(Number(e.target.value))
-          }
-          className="border p-2 w-full rounded"
+          value={levels}
+          onChange={(e) => handleLevelChange(Number(e.target.value))}
+          className="border p-2 rounded w-full"
         />
-      </div>
-
-      {/* TYPE */}
-      <div className="bg-white p-4 rounded-xl shadow">
-        <label className="block text-sm mb-2">
-          Commission Type
-        </label>
-
-        <select
-          value={commissionType}
-          onChange={(e) => setCommissionType(e.target.value)}
-          className="border p-2 w-full rounded"
-        >
-          <option value="percentage">Percentage (%)</option>
-          <option value="fixed">Fixed Amount (₹)</option>
-        </select>
       </div>
 
       {/* PERCENTAGES */}
-      <div className="bg-white p-4 rounded-xl shadow">
-        <h2 className="text-sm font-semibold mb-3">
-          Level Commissions
-        </h2>
+      <div className="space-y-2">
+        <label>Commission per Level</label>
 
-        {percentages.map((val, i) => (
-          <div key={i} className="mb-3">
-
-            <label className="text-xs">
-              Level {i + 1}
-            </label>
-
-            <input
-              type="number"
-              value={val}
-              onChange={(e) =>
-                updatePercentage(i, Number(e.target.value))
-              }
-              className="border p-2 w-full rounded"
-            />
-          </div>
+        {percentages.map((p, i) => (
+          <input
+            key={i}
+            type="number"
+            placeholder={`Level ${i + 1}`}
+            value={p}
+            onChange={(e) =>
+              updatePercentage(i, Number(e.target.value))
+            }
+            className="border p-2 rounded w-full"
+          />
         ))}
       </div>
 
-      {/* MAX CAP */}
-      <div className="bg-white p-4 rounded-xl shadow">
-        <label className="block text-sm mb-2">
-          Max Commission Per Sale (optional)
-        </label>
+      {/* TYPE */}
+      <div>
+        <label>Commission Type</label>
+        <select
+          value={commissionType}
+          onChange={(e) => setCommissionType(e.target.value)}
+          className="border p-2 rounded w-full"
+        >
+          <option value="percentage">Percentage</option>
+          <option value="fixed">Fixed</option>
+        </select>
+      </div>
 
+      {/* MAX CAP */}
+      <div>
+        <label>Max Commission Per Sale (optional)</label>
         <input
           type="number"
-          value={maxCommission}
-          onChange={(e) =>
-            setMaxCommission(e.target.value)
-          }
-          className="border p-2 w-full rounded"
+          value={maxCap}
+          onChange={(e) => setMaxCap(Number(e.target.value))}
+          className="border p-2 rounded w-full"
         />
       </div>
 
-      {/* SUBMIT */}
+      {/* SAVE */}
       <button
-        onClick={handleSubmit}
+        onClick={saveConfig}
         disabled={loading}
         className="bg-blue-600 text-white px-6 py-2 rounded"
       >
-        {loading ? "Saving..." : "Save Configuration"}
+        {loading ? "Saving..." : "Save Config"}
       </button>
-
-      {/* MESSAGE */}
-      {message && (
-        <p className="text-sm text-green-600">
-          {message}
-        </p>
-      )}
 
     </div>
   )

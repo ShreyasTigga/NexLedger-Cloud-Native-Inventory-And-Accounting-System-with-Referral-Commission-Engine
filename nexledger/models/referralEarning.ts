@@ -42,7 +42,7 @@ const ReferralEarningSchema = new Schema<ReferralEarningDocument>(
   { timestamps: { createdAt: true, updatedAt: false } }
 )
 
-// 🔥 Performance indexes
+// Performance indexes
 ReferralEarningSchema.index({ userId: 1, createdAt: -1 })
 ReferralEarningSchema.index({ fromUserId: 1 })
 ReferralEarningSchema.index({ saleId: 1 })

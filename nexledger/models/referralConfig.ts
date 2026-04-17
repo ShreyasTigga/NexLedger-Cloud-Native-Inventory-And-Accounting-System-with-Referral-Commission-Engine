@@ -1,54 +1,42 @@
 import mongoose, { Schema, Document, models, model } from "mongoose"
 
-export interface ReferralEarningDocument extends Document {
-  userId: mongoose.Types.ObjectId
-  fromUserId: mongoose.Types.ObjectId
-  level: number
-  amount: number
-  saleId: mongoose.Types.ObjectId
-  createdAt: Date
+export interface ReferralConfigDocument extends Document {
+  levels: number
+  percentages: number[]
+  commissionType: "percentage" | "fixed"
+  maxCommissionPerSale?: number
+  isActive: boolean
 }
 
-const ReferralEarningSchema = new Schema<ReferralEarningDocument>(
-  {
-    userId: {
-      type: Schema.Types.ObjectId,
-      ref: "Customer",
-      required: true
-    },
-
-    fromUserId: {
-      type: Schema.Types.ObjectId,
-      ref: "Customer",
-      required: true
-    },
-
-    level: {
-      type: Number,
-      required: true
-    },
-
-    amount: {
-      type: Number,
-      required: true
-    },
-
-    saleId: {
-      type: Schema.Types.ObjectId,
-      ref: "SalesInvoice",
-      required: true
-    }
+const ReferralConfigSchema = new Schema<ReferralConfigDocument>({
+  levels: {
+    type: Number,
+    required: true
   },
-  { timestamps: { createdAt: true, updatedAt: false } }
-)
 
-// 🔥 Performance indexes
-ReferralEarningSchema.index({ userId: 1, createdAt: -1 })
-ReferralEarningSchema.index({ fromUserId: 1 })
-ReferralEarningSchema.index({ saleId: 1 })
+  percentages: {
+    type: [Number],
+    required: true
+  },
 
-const ReferralEarning =
-  (models.ReferralEarning as mongoose.Model<ReferralEarningDocument>) ||
-  model<ReferralEarningDocument>("ReferralEarning", ReferralEarningSchema)
+  commissionType: {
+    type: String,
+    enum: ["percentage", "fixed"],
+    default: "percentage"
+  },
 
-export default ReferralEarning
+  maxCommissionPerSale: {
+    type: Number
+  },
+
+  isActive: {
+    type: Boolean,
+    default: true
+  }
+})
+
+const ReferralConfig =
+  (models.ReferralConfig as mongoose.Model<ReferralConfigDocument>) ||
+  model<ReferralConfigDocument>("ReferralConfig", ReferralConfigSchema)
+
+export default ReferralConfig

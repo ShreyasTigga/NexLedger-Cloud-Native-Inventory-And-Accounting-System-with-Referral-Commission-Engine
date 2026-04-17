@@ -24,12 +24,23 @@ export default function SalesDashboard() {
     async function fetchData() {
       try {
         setLoading(true)
-        const res = await fetch("/api/sales")
-        const json = await res.json()
+        const res = await fetch("/api/sales", {
+          credentials: "include"
+        })
 
-        if (!res.ok) throw new Error(json.error)
+let json = null
 
-        setData(json)
+try {
+  json = await res.json()
+} catch {
+  throw new Error("Invalid server response")
+}
+
+if (!res.ok) {
+  throw new Error(json?.error || "Request failed")
+}
+
+setData(json)
       } catch (err: any) {
         setError(err.message)
       } finally {

@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
     // 🔐 SAFE AUTH
     try {
-      user = getUserFromRequest(req)
+      user = await getUserFromRequest(req)
     } catch {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },

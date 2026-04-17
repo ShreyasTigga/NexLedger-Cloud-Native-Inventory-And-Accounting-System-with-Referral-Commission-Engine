@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     if (!user || user.role !== "retailer") {
       return NextResponse.json(

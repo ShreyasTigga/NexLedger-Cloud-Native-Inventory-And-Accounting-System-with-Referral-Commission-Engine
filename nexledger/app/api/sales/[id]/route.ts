@@ -8,12 +8,15 @@ import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    // ✅ ALWAYS extract like this
+    const { id } = await params
+
+    const user = await getUserFromRequest(req)
 
     if (!user) {
       return NextResponse.json(
@@ -22,7 +25,8 @@ export async function GET(
       )
     }
 
-    if (!mongoose.Types.ObjectId.isValid(params.id)) {
+    // ✅ FIXED: use id (NOT params.id)
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: "Invalid invoice ID" },
         { status: 400 }
@@ -30,7 +34,7 @@ export async function GET(
     }
 
     let query: any = {
-      _id: params.id
+      _id: id // ✅ FIXED
     }
 
     // 🧠 RETAILER FLOW
@@ -38,7 +42,7 @@ export async function GET(
       query.retailerId = user.userId
     }
 
-    // 🧠 CUSTOMER FLOW (FIXED)
+    // 🧠 CUSTOMER FLOW
     else if (user.role === "customer") {
 
       const customer = await Customer.findOne({

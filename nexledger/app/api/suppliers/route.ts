@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

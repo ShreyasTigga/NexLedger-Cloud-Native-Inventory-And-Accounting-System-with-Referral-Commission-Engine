@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { apiFetch } from "@/lib/apiFetch"
 
 import {
   LineChart,
@@ -12,27 +13,6 @@ import {
   BarChart,
   Bar
 } from "recharts"
-
-// ================= API FETCH WRAPPER =================
-async function apiFetch(url: string) {
-  const res = await fetch(url, {
-    credentials: "include"
-  })
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      window.location.href = "/retailer/login"
-      return null
-    }
-
-    const err = await res.json()
-    alert(err.error || "Something went wrong")
-    return null
-  }
-
-  const data = await res.json()
-  return data.data 
-}
 
 // ================= TYPES =================
 
@@ -63,17 +43,17 @@ interface DashboardData {
 // ================= COMPONENT =================
 
 export default function DashboardPage() {
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null)
 
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null)
   const [items, setItems] = useState<Item[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [loading, setLoading] = useState(true)
 
   // ================= FETCH DASHBOARD =================
   async function fetchDashboard() {
     const data = await apiFetch("/api/retailer/dashboard")
     if (!data) return
-
     setDashboard(data)
   }
 
@@ -87,14 +67,27 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    fetchDashboard()
+    async function load() {
+      setLoading(true)
+      await fetchDashboard()
+      await fetchItems()
+      setLoading(false)
+    }
+
+    load()
   }, [])
 
   useEffect(() => {
     fetchItems()
   }, [page])
 
-  if (!dashboard) return <p className="p-6">Loading dashboard...</p>
+  if (loading) {
+    return <p className="p-6">Loading dashboard...</p>
+  }
+
+  if (!dashboard) {
+    return <p className="p-6 text-red-500">Failed to load dashboard</p>
+  }
 
   // ================= REVENUE DATA =================
   const revenueMap: Record<string, number> = {}

@@ -5,11 +5,18 @@ import Customer from "@/models/customer"
 import ReferralEarning from "@/models/referralEarning"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
+type PopulatedUser = {
+  _id: string
+  name: string
+  email?: string
+  phone?: string
+}
+
 export async function GET(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     // 🔐 AUTH CHECK
     if (!user || user.role !== "customer") {
@@ -22,7 +29,9 @@ export async function GET(req: NextRequest) {
     const customerId = user.customerId
 
     // ================= CUSTOMER =================
-    const customer = await Customer.findById(customerId).lean()
+    const customer = await Customer.findById(customerId)
+      .populate("userId", "name email phone")
+      .lean()
 
     if (!customer) {
       return NextResponse.json(
@@ -31,12 +40,26 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    const userData = customer.userId as unknown as PopulatedUser
+
     // ================= CHILDREN =================
-    const children = await Customer.find({
+    const childrenRaw = await Customer.find({
       referredBy: customer._id
     })
-      .select("name email referralCode")
+      .populate("userId", "name email")
+      .select("userId referralCode")
       .lean()
+
+    const children = childrenRaw.map((child) => {
+      const userData = child.userId as unknown as PopulatedUser
+
+      return {
+        id: child._id,
+        name: userData?.name,
+        email: userData?.email,
+        referralCode: child.referralCode
+      }
+    })
 
     // ================= EARNINGS =================
     const earnings = await ReferralEarning.find({
@@ -46,12 +69,13 @@ export async function GET(req: NextRequest) {
       .limit(20)
       .lean()
 
+    // ================= RESPONSE =================
     return NextResponse.json({
       user: {
         id: customer._id,
-        name: customer.name,
-        email: customer.email,
-        phone: customer.phone,
+        name: userData?.name,
+        email: userData?.email,
+        phone: userData?.phone,
         referralCode: customer.referralCode,
         walletBalance: customer.walletBalance,
         referredBy: customer.referredBy

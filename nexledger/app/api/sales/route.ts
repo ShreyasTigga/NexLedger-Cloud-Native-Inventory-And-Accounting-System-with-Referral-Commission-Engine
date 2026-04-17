@@ -4,59 +4,20 @@ import mongoose, { ClientSession } from "mongoose"
 
 import Item from "@/models/item"
 import Customer from "@/models/customer"
-import SalesInvoice, { SalesInvoiceDocument } from "@/models/salesInvoice"
+import SalesInvoice from "@/models/salesInvoice"
 import StockMovement from "@/models/stockMovement"
 import LedgerEntry from "@/models/ledgerEntry"
 import { processReferralCommission } from "@/lib/referralService"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
-// ================= GET =================
-export async function GET(req: NextRequest) {
-  try {
-    await dbConnect()
-
-    const user = getUserFromRequest(req)
-
-    if (!user || user.role !== "retailer") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const { searchParams } = new URL(req.url)
-
-    const page = Number(searchParams.get("page")) || 1
-    const limit = 10
-    const skip = (page - 1) * limit
-
-    const retailerId = new mongoose.Types.ObjectId(user.userId)
-
-    const invoices = await SalesInvoice.find({ retailerId })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .select("customerId totalAmount createdAt")
-      .lean()
-
-    const total = await SalesInvoice.countDocuments({ retailerId })
-
-    return NextResponse.json({
-      invoices,
-      totalPages: Math.ceil(total / limit)
-    })
-
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
-  }
-}
-
-// ================= POST =================
 export async function POST(req: NextRequest) {
-  let session: ClientSession | undefined
+  let session: ClientSession | null = null
 
   try {
     await dbConnect()
     session = await mongoose.startSession()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     if (!user || (user.role !== "retailer" && user.role !== "customer")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -72,19 +33,14 @@ export async function POST(req: NextRequest) {
     let retailerId: mongoose.Types.ObjectId
     let customerId: mongoose.Types.ObjectId
 
-    // ================= FLOW =================
+    // ================= ROLE FLOW =================
     if (user.role === "retailer") {
-      if (!body.customerId || !mongoose.Types.ObjectId.isValid(body.customerId)) {
-        return NextResponse.json({ error: "Invalid customer ID" }, { status: 400 })
-      }
-
       retailerId = new mongoose.Types.ObjectId(user.userId)
       customerId = new mongoose.Types.ObjectId(body.customerId)
-
     } else {
       const customer = await Customer.findOne({
         userId: user.userId
-      }).session(session)
+      })
 
       if (!customer) {
         return NextResponse.json({ error: "Customer not found" }, { status: 404 })
@@ -94,49 +50,38 @@ export async function POST(req: NextRequest) {
       customerId = customer._id
     }
 
+    let invoiceId: mongoose.Types.ObjectId | null = null
+
     await session.withTransaction(async () => {
 
       const customer = await Customer.findOne({
         _id: customerId,
         retailerId
-      }).session(session || null)
+      }).session(session)
 
       if (!customer) throw new Error("Customer not found")
 
-      const seenProducts = new Set<string>()
-
-      const processedItems: SalesInvoiceDocument["items"] = []
-
+      const processedItems: any[] = []
       let totalAmount = 0
       let totalCGST = 0
       let totalSGST = 0
 
       for (const item of items) {
 
-        if (
-          !item.productId ||
-          !mongoose.Types.ObjectId.isValid(item.productId) ||
-          !item.quantity ||
-          item.quantity <= 0
-        ) {
-          throw new Error("Invalid item data")
-        }
-
-        if (seenProducts.has(item.productId)) {
-          throw new Error("Duplicate product in cart")
-        }
-
-        seenProducts.add(item.productId)
-
         const product = await Item.findOne({
           _id: item.productId,
           retailerId
-        }).session(session || null)
+        }).session(session)
 
         if (!product) throw new Error("Product not found")
+
         if (product.stockQuantity < item.quantity) {
           throw new Error(`Not enough stock for ${product.name}`)
         }
+
+        // ✅ STOCK UPDATE
+        product.stockQuantity -= item.quantity
+        await product.save({ session })
 
         const price = product.sellingPrice
         const taxRate = product.taxRate
@@ -168,15 +113,9 @@ export async function POST(req: NextRequest) {
           gstAmount,
           total
         })
-
-        await Item.updateOne(
-          { _id: product._id, retailerId },
-          { $inc: { stockQuantity: -item.quantity } },
-          { session }
-        )
       }
 
-      // ================= INVOICE =================
+      // ================= CREATE INVOICE =================
       const [invoice] = await SalesInvoice.create(
         [
           {
@@ -190,26 +129,26 @@ export async function POST(req: NextRequest) {
         { session }
       )
 
-      const invoiceId = invoice._id
+      invoiceId = invoice._id
 
-      // ================= STOCK =================
+      // ================= STOCK MOVEMENT =================
       await StockMovement.insertMany(
         processedItems.map(item => ({
           retailerId,
           itemId: item.itemId,
           type: "sale",
           quantity: -item.quantity,
-          reference: invoiceId.toString()
+          reference: invoiceId!.toString()
         })),
         { session }
       )
 
       // ================= REFERRAL =================
       await processReferralCommission({
-        saleId: invoiceId,
+        saleId: invoiceId!,
         customerId,
         totalAmount,
-        session
+        session: session ?? undefined
       })
 
       // ================= LEDGER =================
@@ -220,7 +159,7 @@ export async function POST(req: NextRequest) {
             type: "debit",
             account: "Customer",
             amount: totalAmount,
-            referenceId: invoiceId,
+            referenceId: invoiceId!,
             description: "Sale"
           },
           {
@@ -228,7 +167,7 @@ export async function POST(req: NextRequest) {
             type: "credit",
             account: "Sales",
             amount: totalAmount - (totalCGST + totalSGST),
-            referenceId: invoiceId,
+            referenceId: invoiceId!,
             description: "Revenue"
           },
           {
@@ -236,7 +175,7 @@ export async function POST(req: NextRequest) {
             type: "credit",
             account: "CGST Payable",
             amount: totalCGST,
-            referenceId: invoiceId,
+            referenceId: invoiceId!,
             description: "CGST"
           },
           {
@@ -244,7 +183,7 @@ export async function POST(req: NextRequest) {
             type: "credit",
             account: "SGST Payable",
             amount: totalSGST,
-            referenceId: invoiceId,
+            referenceId: invoiceId!,
             description: "SGST"
           }
         ],
@@ -253,20 +192,90 @@ export async function POST(req: NextRequest) {
 
     })
 
-    return NextResponse.json(
-      { message: "Sale completed successfully" },
-      { status: 201 }
-    )
+    // ✅ SAFE CHECK (CORRECT PLACE)
+    if (!invoiceId) {
+      return NextResponse.json(
+        { error: "Invoice creation failed" },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      message: "Sale completed",
+      invoiceId
+    })
 
   } catch (err: any) {
     console.error("SALE ERROR:", err)
 
     return NextResponse.json(
-      { error: err.message },
+      { error: err.message || "Server error" },
       { status: 500 }
     )
 
   } finally {
     if (session) session.endSession()
+  }
+}
+
+// ================= GET =================
+export async function GET(req: NextRequest) {
+  try {
+    await dbConnect()
+
+    let user
+
+    try {
+      user = await getUserFromRequest(req)
+    } catch {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
+
+    if (!user || user.role !== "retailer") {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
+
+    const retailerId = new mongoose.Types.ObjectId(user.userId)
+
+    // 🔥 Fetch invoices
+    const invoices = await SalesInvoice.find({ retailerId })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .select("totalAmount createdAt")
+      .lean()
+
+    // 🔥 Total revenue
+    const revenueData = await SalesInvoice.aggregate([
+      { $match: { retailerId } },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: "$totalAmount" }
+        }
+      }
+    ])
+
+    const totalRevenue = revenueData[0]?.totalRevenue || 0
+    const totalSales = invoices.length
+
+    return NextResponse.json({
+      totalSales,
+      totalRevenue,
+      invoices
+    })
+
+  } catch (err: any) {
+    console.error("SALES GET ERROR:", err)
+
+    return NextResponse.json(
+      { error: err.message || "Server error" },
+      { status: 500 }
+    )
   }
 }

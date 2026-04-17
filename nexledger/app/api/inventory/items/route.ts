@@ -3,13 +3,15 @@ import dbConnect from "@/lib/mongodb"
 import Item from "@/models/item"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 import mongoose from "mongoose"
+import "@/models/supplier"
+import Supplier from "@/models/supplier"
 
 // ================= CREATE =================
 export async function POST(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -86,7 +88,7 @@ export async function GET(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -136,7 +138,7 @@ export async function DELETE(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -169,7 +171,7 @@ export async function PUT(req: NextRequest) {
   try {
     await dbConnect()
 
-    const user = getUserFromRequest(req)
+    const user = await getUserFromRequest(req)
 
     if (!user || user.role !== "retailer") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
