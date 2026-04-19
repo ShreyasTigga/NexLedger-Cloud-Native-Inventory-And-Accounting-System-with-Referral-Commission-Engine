@@ -12,7 +12,6 @@ export interface ItemDocument extends Document {
   taxRate: number
   stockQuantity: number
   reorderLevel: number
-  defaultSupplierId?: mongoose.Types.ObjectId
   retailerId: mongoose.Types.ObjectId
   createdAt: Date
   updatedAt: Date
@@ -85,11 +84,6 @@ const ItemSchema = new Schema<ItemDocument>(
       type: Number,
       default: 5,
       min: 0
-    },
-
-    defaultSupplierId: {
-      type: Schema.Types.ObjectId,
-      ref: "Supplier"
     },
 
     retailerId: {

@@ -7,6 +7,7 @@ import PurchaseInvoice from "@/models/purchaseInvoice"
 import StockMovement from "@/models/stockMovement"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 import Supplier from "@/models/supplier"
+import LedgerEntry from "@/models/ledgerEntry"
 
 // ================= CREATE PURCHASE =================
 export async function POST(req: NextRequest) {
@@ -23,13 +24,28 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
 
-    let { invoiceNumber, supplierName, items } = body
+    let { invoiceNumber, supplierId, items } = body
 
     invoiceNumber = invoiceNumber?.trim()
-    supplierName = supplierName?.trim()
 
     if (!invoiceNumber || !items || items.length === 0) {
       return NextResponse.json({ error: "Invalid invoice data" }, { status: 400 })
+    }
+
+    if (!supplierId || !mongoose.Types.ObjectId.isValid(supplierId)) {
+      return NextResponse.json(
+        { error: "Invalid supplier" },
+        { status: 400 }
+      )
+    }
+
+    const supplier = await Supplier.findById(supplierId)
+
+    if (!supplier) {
+      return NextResponse.json(
+        { error: "Supplier not found" },
+        { status: 404 }
+      )
     }
 
     // 🔒 Prevent duplicate invoice number per retailer
@@ -42,103 +58,128 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invoice already exists" }, { status: 400 })
     }
 
-    await session.withTransaction(async () => {
-      let invoiceTotal = 0
+await session.withTransaction(async () => {
 
-      const processedItems: any[] = []
+  let invoiceTotal = 0
+  const processedItems: any[] = []
+  const seenProducts = new Set()
 
-      // 🔥 Prevent duplicate product entries
-      const seenProducts = new Set()
+  // ================= PROCESS ITEMS =================
+  for (const entry of items) {
+    const { productId, quantity, purchasePrice } = entry
 
-      for (const entry of items) {
-        const { productId, quantity, purchasePrice } = entry
+    if (
+      !productId ||
+      !mongoose.Types.ObjectId.isValid(productId) ||
+      quantity <= 0 ||
+      purchasePrice <= 0
+    ) {
+      throw new Error("Invalid item data")
+    }
 
-        if (
-          !productId ||
-          !mongoose.Types.ObjectId.isValid(productId) ||
-          quantity <= 0 ||
-          purchasePrice <= 0
-        ) {
-          throw new Error("Invalid item data")
-        }
+    if (seenProducts.has(productId)) {
+      throw new Error("Duplicate product in invoice")
+    }
 
-        if (seenProducts.has(productId)) {
-          throw new Error("Duplicate product in invoice")
-        }
+    seenProducts.add(productId)
 
-        seenProducts.add(productId)
+    const product = await Item.findOne({
+      _id: productId,
+      retailerId: user.userId
+    }).session(session)
 
-        const product = await Item.findOne({
-          _id: productId,
-          retailerId: user.userId
-        }).session(session)
+    if (!product) {
+      throw new Error("Product not found")
+    }
 
-        if (!product) {
-          throw new Error("Product not found or unauthorized")
-        }
+    const oldQty = product.stockQuantity
+    const oldCost = product.costPrice
+    const totalQty = oldQty + quantity
 
-        const oldQty = product.stockQuantity
-        const oldCost = product.costPrice
-        const totalQty = oldQty + quantity
+    let newCostPrice = purchasePrice
 
-        let newCostPrice = purchasePrice
+    if (oldQty > 0) {
+      newCostPrice =
+        ((oldQty * oldCost) + (quantity * purchasePrice)) / totalQty
+    }
 
-        if (oldQty > 0) {
-          newCostPrice =
-            ((oldQty * oldCost) + (quantity * purchasePrice)) / totalQty
-        }
+    const totalAmount = quantity * purchasePrice
 
-        const totalAmount = quantity * purchasePrice
+    await Item.findOneAndUpdate(
+      { _id: productId, retailerId: user.userId },
+      {
+        stockQuantity: totalQty,
+        costPrice: newCostPrice
+      },
+      { session }
+    )
 
-        // 🔄 Update item
-        await Item.findOneAndUpdate(
-          { _id: productId, retailerId: user.userId },
-          {
-            stockQuantity: totalQty,
-            costPrice: newCostPrice
-          },
-          { session }
-        )
-
-        // 📦 Stock movement
-        await StockMovement.create(
-          [
-            {
-              retailerId: user.userId,
-              itemId: productId,
-              type: "purchase",
-              quantity,
-              reference: invoiceNumber
-            }
-          ],
-          { session }
-        )
-
-        processedItems.push({
-          productId,
-          productName: product.name,
+    await StockMovement.create(
+      [
+        {
+          retailerId: user.userId,
+          itemId: productId,
+          type: "purchase",
           quantity,
-          purchasePrice,
-          totalAmount
-        })
+          reference: invoiceNumber
+        }
+      ],
+      { session }
+    )
 
-        invoiceTotal += totalAmount
-      }
-
-      // 🧾 Create invoice
-      await PurchaseInvoice.create(
-        [
-          {
-            retailerId: user.userId,
-            invoiceNumber,
-            supplierName,
-            totalAmount: invoiceTotal,
-            items: processedItems
-          }
-        ],
-        { session }
-      )
+    processedItems.push({
+      productId,
+      productName: product.name,
+      quantity,
+      purchasePrice,
+      totalAmount
     })
+
+    invoiceTotal += totalAmount
+  }
+
+  // ================= CREATE INVOICE =================
+  const purchase = await PurchaseInvoice.create(
+    [
+      {
+        retailerId: user.userId,
+        invoiceNumber,
+        supplierId,
+        totalAmount: invoiceTotal,
+        items: processedItems
+      }
+    ],
+    { session }
+  )
+
+  const createdPurchase = purchase[0]
+
+  // ================= LEDGER ENTRY =================
+  await LedgerEntry.insertMany(
+    [
+      {
+        retailerId: user.userId,
+        type: "debit",
+        account: "Purchase",
+        amount: invoiceTotal,
+        referenceId: createdPurchase._id,
+        referenceModel: "Purchase",
+        description: "Stock purchase"
+      },
+      {
+        retailerId: user.userId,
+        type: "credit",
+        account: "Cash",
+        amount: invoiceTotal,
+        referenceId: createdPurchase._id,
+        referenceModel: "Purchase",
+        description: "Payment made"
+      }
+    ],
+    { session }
+  )
+
+})
 
     return NextResponse.json(
       { message: "Purchase invoice created successfully" },
@@ -183,7 +224,8 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .select("invoiceNumber supplierName totalAmount createdAt items") 
+      .populate("supplierId", "name")
+      .select("invoiceNumber supplierId totalAmount createdAt items") 
       .lean()
 
     const total = await PurchaseInvoice.countDocuments(query)

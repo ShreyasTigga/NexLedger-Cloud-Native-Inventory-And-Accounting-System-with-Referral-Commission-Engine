@@ -152,43 +152,47 @@ export async function POST(req: NextRequest) {
       })
 
       // ================= LEDGER =================
-      await LedgerEntry.insertMany(
-        [
-          {
-            retailerId,
-            type: "debit",
-            account: "Customer",
-            amount: totalAmount,
-            referenceId: invoiceId!,
-            description: "Sale"
-          },
-          {
-            retailerId,
-            type: "credit",
-            account: "Sales",
-            amount: totalAmount - (totalCGST + totalSGST),
-            referenceId: invoiceId!,
-            description: "Revenue"
-          },
-          {
-            retailerId,
-            type: "credit",
-            account: "CGST Payable",
-            amount: totalCGST,
-            referenceId: invoiceId!,
-            description: "CGST"
-          },
-          {
-            retailerId,
-            type: "credit",
-            account: "SGST Payable",
-            amount: totalSGST,
-            referenceId: invoiceId!,
-            description: "SGST"
-          }
-        ],
-        { session }
-      )
+await LedgerEntry.insertMany(
+  [
+    {
+      retailerId,
+      type: "debit",
+      account: "Customer",
+      amount: totalAmount,
+      referenceId: invoiceId!,
+      referenceModel: "Sale", // ✅ ADD THIS
+      description: "Sale"
+    },
+    {
+      retailerId,
+      type: "credit",
+      account: "Sales",
+      amount: totalAmount - (totalCGST + totalSGST),
+      referenceId: invoiceId!,
+      referenceModel: "Sale", // ✅ ADD THIS
+      description: "Revenue"
+    },
+    {
+      retailerId,
+      type: "credit",
+      account: "CGST Payable",
+      amount: totalCGST,
+      referenceId: invoiceId!,
+      referenceModel: "Sale", // ✅ ADD THIS
+      description: "CGST"
+    },
+    {
+      retailerId,
+      type: "credit",
+      account: "SGST Payable",
+      amount: totalSGST,
+      referenceId: invoiceId!,
+      referenceModel: "Sale", // ✅ ADD THIS
+      description: "SGST"
+    }
+  ],
+  { session }
+)
 
     })
 

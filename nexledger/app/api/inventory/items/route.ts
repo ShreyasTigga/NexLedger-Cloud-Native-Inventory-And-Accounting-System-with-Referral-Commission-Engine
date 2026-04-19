@@ -3,8 +3,6 @@ import dbConnect from "@/lib/mongodb"
 import Item from "@/models/item"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 import mongoose from "mongoose"
-import "@/models/supplier"
-import Supplier from "@/models/supplier"
 
 // ================= CREATE =================
 export async function POST(req: NextRequest) {
@@ -26,16 +24,8 @@ export async function POST(req: NextRequest) {
 
     const { brand, unit, costPrice, sellingPrice, taxRate, reorderLevel } = body
 
-    // ✅ ADDED: supplier input (no change to existing destructuring)
-    const defaultSupplierId = body.defaultSupplierId
-
     if (!name || !sku || !category || costPrice == null || sellingPrice == null) {
       return NextResponse.json({ error: "Required fields missing" }, { status: 400 })
-    }
-
-    // ✅ ADDED: validate supplierId (safe check)
-    if (defaultSupplierId && !mongoose.Types.ObjectId.isValid(defaultSupplierId)) {
-      return NextResponse.json({ error: "Invalid supplier ID" }, { status: 400 })
     }
 
     const existingSKU = await Item.findOne({
@@ -70,10 +60,7 @@ export async function POST(req: NextRequest) {
       sellingPrice: Number(sellingPrice),
       taxRate: Number(taxRate) || 0,
       reorderLevel: Number(reorderLevel) || 5,
-      stockQuantity: 0,
-
-      // ✅ ADDED: supplier saved
-      defaultSupplierId: defaultSupplierId || undefined
+      stockQuantity: 0
     })
 
     return NextResponse.json(item, { status: 201 })
@@ -114,11 +101,10 @@ export async function GET(req: NextRequest) {
     }
 
     const products = await Item.find(query)
-      .populate("defaultSupplierId", "name")
       .sort({ createdAt: -1 }) 
       .skip(skip)
       .limit(limit)
-      .select("name sku category sellingPrice taxRate stockQuantity defaultSupplierId")
+      .select("name sku category sellingPrice taxRate stockQuantity")
       .lean()
 
     const total = await Item.countDocuments(query)

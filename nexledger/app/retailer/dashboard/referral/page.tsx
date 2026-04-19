@@ -12,7 +12,7 @@ export default function ReferralConfigPage() {
 
   // ================= FETCH =================
   useEffect(() => {
-    fetch("/api/referral-config")
+    fetch("/api/referral-config", {credentials: "include"})
       .then(res => res.json())
       .then(data => {
         if (!data) return
@@ -44,6 +44,7 @@ export default function ReferralConfigPage() {
 
     const res = await fetch("/api/referral/config", {
       method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json"
       },

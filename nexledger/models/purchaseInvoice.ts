@@ -40,9 +40,10 @@ const PurchaseInvoiceSchema = new Schema(
       required: true
     },
 
-    supplierName: {
-      type: String,
-      trim: true
+    supplierId: {
+      type: Schema.Types.ObjectId,
+      ref: "Supplier",
+      required: true
     },
 
     totalAmount: {

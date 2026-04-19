@@ -15,12 +15,6 @@ interface Product {
   taxRate: number
   stockQuantity: number
   reorderLevel: number
-  defaultSupplierId?: string
-}
-
-interface Supplier {
-  _id: string
-  name: string
 }
 
 export default function ProductsPage() {
@@ -31,22 +25,19 @@ export default function ProductsPage() {
   const [totalPages, setTotalPages] = useState(1)
 
   const [editingProduct, setEditingProduct] = useState<any>(null)
-
   const [viewProduct, setViewProduct] = useState<any>(null)
 
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
-
   const [categories, setCategories] = useState<string[]>([
-  "Grocery",
-  "Electronics",
-  "Clothing",
-  "Dairy",
-  "BodyCare",
-  "Luxury",
-  "Others"
-])
+    "Grocery",
+    "Electronics",
+    "Clothing",
+    "Dairy",
+    "BodyCare",
+    "Luxury",
+    "Others"
+  ])
 
-const [showCustomCategory, setShowCustomCategory] = useState(false)
+  const [showCustomCategory, setShowCustomCategory] = useState(false)
 
   const [form, setForm] = useState({
     name: "",
@@ -58,85 +49,45 @@ const [showCustomCategory, setShowCustomCategory] = useState(false)
     costPrice: "",
     sellingPrice: "",
     taxRate: "",
-    reorderLevel: "",
-    defaultSupplierId: ""
+    reorderLevel: ""
   })
 
-  // ✅ Fetch products
-const fetchProducts = async () => {
-  const res = await fetch(
-    `/api/inventory/items?search=${search}&page=${page}`,
-    { credentials: "include" }
-  )
+  // 🔥 Fetch products
+  const fetchProducts = async () => {
+    const res = await fetch(
+      `/api/inventory/items?search=${search}&page=${page}`,
+      { credentials: "include" }
+    )
 
-  // 🔥 HANDLE UNAUTHORIZED
-  if (res.status === 401) {
-    window.location.href = "/retailer/login"
-    return
+    if (res.status === 401) {
+      window.location.href = "/retailer/login"
+      return
+    }
+
+    const data = await res.json()
+    setProducts(data.products || [])
+    setTotalPages(data.totalPages || 1)
   }
-
-  const data = await res.json()
-
-  // 🔥 SAFE SET
-  setProducts(data.products || [])
-  setTotalPages(data.totalPages || 1)
-}
-
-  // ✅ ADDED: fetch suppliers
-const fetchSuppliers = async () => {
-  const res = await fetch("/api/suppliers", {
-    credentials: "include"
-  })
-
-  // 🔥 HANDLE UNAUTHORIZED
-  if (res.status === 401) {
-    window.location.href = "/retailer/login"
-    return
-  }
-
-  const data = await res.json()
-
-  setSuppliers(data.suppliers || [])
-}
 
   useEffect(() => {
     fetchProducts()
   }, [search, page])
 
-  // ✅ ADDED
-  useEffect(() => {
-    fetchSuppliers()
-  }, [])
-
-  useEffect(() => {
-  const handleFocus = () => {
-    fetchSuppliers()
-  }
-
-  window.addEventListener("focus", handleFocus)
-
-  return () => {
-    window.removeEventListener("focus", handleFocus)
-  }
-}, [])
-
-  // ✅ Form change
   const handleChange = (e: any) => {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
-  // ✅ Create product
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-      if (form.category && !categories.includes(form.category)) {
-    setCategories([...categories, form.category])
-  }
+    if (form.category && !categories.includes(form.category)) {
+      setCategories([...categories, form.category])
+    }
 
     const res = await fetch("/api/inventory/items", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include", // ✅ ADDED
+      credentials: "include",
       body: JSON.stringify({
         ...form,
         costPrice: Number(form.costPrice),
@@ -157,8 +108,7 @@ const fetchSuppliers = async () => {
         costPrice: "",
         sellingPrice: "",
         taxRate: "",
-        reorderLevel: "",
-        defaultSupplierId: "" // ✅ ADDED
+        reorderLevel: ""
       })
 
       fetchProducts()
@@ -168,36 +118,31 @@ const fetchSuppliers = async () => {
     }
   }
 
-  // ✅ Delete
   const deleteProduct = async (id: string) => {
     await fetch("/api/inventory/items", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      credentials: "include", // ✅ ADDED
+      credentials: "include",
       body: JSON.stringify({ id })
     })
 
     fetchProducts()
   }
 
-  // ✅ Open edit
   const openEdit = (product: any) => {
     setEditingProduct(product)
   }
 
-  // ✅ Update product
   const updateProduct = async () => {
     const res = await fetch("/api/inventory/items", {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({
         id: editingProduct._id,
         updates: {
-        sellingPrice: Number(editingProduct.sellingPrice),
-        taxRate: Number(editingProduct.taxRate)
+          sellingPrice: Number(editingProduct.sellingPrice),
+          taxRate: Number(editingProduct.taxRate)
         }
       })
     })
@@ -213,19 +158,12 @@ const fetchSuppliers = async () => {
     }
   }
 
-  const getSupplierName = (id: string) => {
-    const s = suppliers.find((sup) => sup._id === id)
-    return s?.name || "Not assigned"
-  }
-
   return (
     <div className="max-w-6xl mx-auto space-y-10">
 
-      {/* Create Product */}
+      {/* CREATE PRODUCT */}
       <div className="bg-white p-6 rounded-xl shadow-md">
-        <h2 className="text-xl font-semibold mb-6">
-          Create Product
-        </h2>
+        <h2 className="text-xl font-semibold mb-6">Create Product</h2>
 
         <form
           onSubmit={handleSubmit}
@@ -244,45 +182,44 @@ const fetchSuppliers = async () => {
             className="border rounded-lg p-2"
             value={form.barcode} onChange={handleChange} />
 
+          {/* CATEGORY */}
           <select
-  name="category"
-  value={form.category}
-  onChange={(e) => {
-    const value = e.target.value
+            name="category"
+            value={form.category}
+            onChange={(e) => {
+              const value = e.target.value
 
-    if (value === "ADD_NEW") {
-      setShowCustomCategory(true)
-      setForm({ ...form, category: "" })
-    } else {
-      setShowCustomCategory(false)
-      setForm({ ...form, category: value })
-    }
-  }}
-  className="border p-2 rounded w-full"
-  required
->
-  <option value="">Select Category</option>
+              if (value === "ADD_NEW") {
+                setShowCustomCategory(true)
+                setForm({ ...form, category: "" })
+              } else {
+                setShowCustomCategory(false)
+                setForm({ ...form, category: value })
+              }
+            }}
+            className="border p-2 rounded w-full"
+            required
+          >
+            <option value="">Select Category</option>
 
-  {categories.map((cat) => (
-    <option key={cat} value={cat}>
-      {cat}
-    </option>
-  ))}
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
 
-  <option value="ADD_NEW">+ Add New Category</option>
-</select>
+            <option value="ADD_NEW">+ Add New Category</option>
+          </select>
 
-{showCustomCategory && (
-  <input
-    type="text"
-    placeholder="Enter new category"
-    value={form.category}
-    onChange={(e) =>
-      setForm({ ...form, category: e.target.value })
-    }
-    className="border p-2 rounded w-full mt-2"
-  />
-)}
+          {showCustomCategory && (
+            <input
+              type="text"
+              placeholder="Enter new category"
+              value={form.category}
+              onChange={(e) =>
+                setForm({ ...form, category: e.target.value })
+              }
+              className="border p-2 rounded w-full mt-2"
+            />
+          )}
 
           <input name="brand" placeholder="Brand"
             className="border rounded-lg p-2"
@@ -317,31 +254,6 @@ const fetchSuppliers = async () => {
             className="border rounded-lg p-2"
             value={form.reorderLevel} onChange={handleChange} />
 
-          {/* ✅ ADDED: Supplier Dropdown */}
-          <select
-            name="defaultSupplierId"
-            className="border rounded-lg p-2"
-            value={form.defaultSupplierId}
-            onChange={handleChange}
-          >
-            <option value="">Select Supplier (Optional)</option>
-
-            {suppliers.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-
-          {/* ✅ OPTIONAL */}
-          <button
-            type="button"
-            onClick={() => window.location.href = "/retailer/dashboard/suppliers"}
-            className="text-blue-600 text-sm"
-          >
-            + Add New Supplier
-          </button>
-
           <button
             type="submit"
             className="md:col-span-3 bg-blue-600 text-white py-2 rounded-lg"
@@ -352,7 +264,7 @@ const fetchSuppliers = async () => {
         </form>
       </div>
 
-      {/* Search */}
+      {/* SEARCH */}
       <input
         placeholder="Search..."
         className="border rounded-lg p-2 w-full"
@@ -360,7 +272,7 @@ const fetchSuppliers = async () => {
         onChange={(e) => setSearch(e.target.value)}
       />
 
-      {/* Table */}
+      {/* TABLE */}
       <div className="bg-white p-6 rounded-xl shadow-md">
         <table className="min-w-full text-sm">
           <thead>
@@ -417,7 +329,7 @@ const fetchSuppliers = async () => {
         </table>
       </div>
 
-            {/* ✅ VIEW MODAL */}
+      {/* VIEW MODAL */}
       {viewProduct && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
           <div className="bg-white p-6 rounded-xl w-[500px] space-y-4">
@@ -425,26 +337,13 @@ const fetchSuppliers = async () => {
             <h2 className="text-lg font-semibold">Product Details</h2>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
-
               <p><strong>Name:</strong> {viewProduct.name}</p>
               <p><strong>SKU:</strong> {viewProduct.sku}</p>
-              <p><strong>Barcode:</strong> {viewProduct.barcode || "-"}</p>
               <p><strong>Category:</strong> {viewProduct.category}</p>
-              <p><strong>Brand:</strong> {viewProduct.brand || "-"}</p>
-              <p><strong>Unit:</strong> {viewProduct.unit}</p>
-
-              <p><strong>Cost Price:</strong> ₹{viewProduct.costPrice}</p>
-              <p><strong>Selling Price:</strong> ₹{viewProduct.sellingPrice}</p>
-              <p><strong>GST:</strong> {viewProduct.taxRate ?? 0}%</p>
-
+              <p><strong>Cost:</strong> ₹{viewProduct.costPrice}</p>
+              <p><strong>Selling:</strong> ₹{viewProduct.sellingPrice}</p>
               <p><strong>Stock:</strong> {viewProduct.stockQuantity}</p>
-              <p><strong>Reorder Level:</strong> {viewProduct.reorderLevel}</p>
-
-              <p className="col-span-2">
-                <strong>Supplier:</strong>{" "}
-                {getSupplierName(viewProduct.defaultSupplierId)}
-              </p>
-
+              <p><strong>Reorder:</strong> {viewProduct.reorderLevel}</p>
             </div>
 
             <div className="flex justify-end">
@@ -463,7 +362,6 @@ const fetchSuppliers = async () => {
       {/* EDIT MODAL */}
       {editingProduct && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-
           <div className="bg-white p-6 rounded-xl w-96 space-y-4">
 
             <input
@@ -478,21 +376,19 @@ const fetchSuppliers = async () => {
               className="w-full border p-2 rounded"
             />
 
-<input
-  type="number"
-  placeholder="GST (%)"
-  value={editingProduct?.taxRate || ""}
-  onChange={(e) =>
-    setEditingProduct({
-      ...editingProduct,
-      taxRate: e.target.value
-    })
-  }
-  className="w-full border p-2 rounded"
-/>
+            <input
+              type="number"
+              value={editingProduct?.taxRate || ""}
+              onChange={(e) =>
+                setEditingProduct({
+                  ...editingProduct,
+                  taxRate: e.target.value
+                })
+              }
+              className="w-full border p-2 rounded"
+            />
 
             <div className="flex justify-end gap-3">
-
               <button
                 onClick={() => setEditingProduct(null)}
                 className="px-4 py-2 bg-gray-200 rounded"
@@ -506,15 +402,13 @@ const fetchSuppliers = async () => {
               >
                 Save
               </button>
-
             </div>
 
           </div>
-
         </div>
       )}
 
-      {/* Pagination */}
+      {/* PAGINATION */}
       <div className="flex justify-center gap-4">
         <button
           disabled={page === 1}

@@ -5,7 +5,8 @@ export interface LedgerEntryDocument extends Document {
   account: string
   type: "debit" | "credit"
   amount: number
-  referenceId?: string
+  referenceId?: mongoose.Types.ObjectId
+  referenceModel?: "Purchase" | "Sale"
   description?: string
   createdAt: Date
 }
@@ -29,7 +30,15 @@ const LedgerEntrySchema = new Schema<LedgerEntryDocument>(
 
     amount: { type: Number, required: true },
 
-    referenceId: String,
+    referenceId: {
+      type: Schema.Types.ObjectId
+    },
+
+    referenceModel: {
+      type: String,
+      enum: ["Purchase", "Sale"]
+    },
+
     description: String
   },
   { timestamps: { createdAt: true, updatedAt: false } }
