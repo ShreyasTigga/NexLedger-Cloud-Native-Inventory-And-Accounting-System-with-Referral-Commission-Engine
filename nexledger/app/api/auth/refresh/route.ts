@@ -25,9 +25,17 @@ export async function POST(req: NextRequest) {
 
     const res = NextResponse.json({ message: "Token refreshed" })
 
-    res.cookies.set("accessToken", newAccessToken, {
+    const refreshName =
+      user.role === "retailer"
+      ? "retailerRefreshToken"
+      : "customerRefreshToken"
+
+    res.cookies.set(refreshName, refreshToken, {
       httpOnly: true,
-      path: "/"
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7
     })
 
     return res

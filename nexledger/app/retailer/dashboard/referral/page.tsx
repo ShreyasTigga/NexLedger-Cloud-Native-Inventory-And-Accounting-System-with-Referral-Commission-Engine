@@ -9,25 +9,33 @@ export default function ReferralConfigPage() {
   const [commissionType, setCommissionType] = useState("percentage")
   const [maxCap, setMaxCap] = useState<number | "">("")
   const [loading, setLoading] = useState(false)
+  const [config, setConfig] = useState<any[]>([])
 
   // ================= FETCH =================
   useEffect(() => {
-    fetch("/api/referral-config", {credentials: "include"})
+    fetch("/api/referral-config", { credentials: "include" })
       .then(res => res.json())
       .then(data => {
-        if (!data) return
+        // ✅ Handle array response (your current API)
+        if (Array.isArray(data)) {
+          setConfig(data)
 
-        setLevels(data.levels)
-        setPercentages(data.percentages)
-        setCommissionType(data.commissionType)
-        setMaxCap(data.maxCommissionPerSale || "")
+          // OPTIONAL: auto-fill form from config
+          setLevels(data.length)
+          setPercentages(data.map((d: any) => d.commission))
+        } else {
+          // fallback (future structure)
+          setLevels(data?.levels || 1)
+          setPercentages(data?.percentages || [0])
+          setCommissionType(data?.commissionType || "percentage")
+          setMaxCap(data?.maxCommissionPerSale || "")
+        }
       })
   }, [])
 
   // ================= LEVEL CHANGE =================
   const handleLevelChange = (value: number) => {
     setLevels(value)
-
     const updated = Array.from({ length: value }, (_, i) => percentages[i] || 0)
     setPercentages(updated)
   }
@@ -40,33 +48,40 @@ export default function ReferralConfigPage() {
 
   // ================= SAVE =================
   const saveConfig = async () => {
-    setLoading(true)
+  setLoading(true)
 
-    const res = await fetch("/api/referral/config", {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        levels,
-        percentages,
-        commissionType,
-        maxCommissionPerSale: maxCap || undefined,
-        isActive: true
-      })
+  const res = await fetch("/api/referral/config", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      levels,
+      percentages,
+      commissionType,
+      maxCommissionPerSale: maxCap || undefined,
+      isActive: true
     })
+  })
 
-    const data = await res.json()
+  const data = await res.json()
 
-    if (!res.ok) {
-      alert(data.error)
-    } else {
-      alert("Config saved successfully ✅")
-    }
+  if (!res.ok) {
+    alert(data.error)
+  } else {
+    alert("Config saved successfully ✅")
 
-    setLoading(false)
+    // ✅ ADD THIS BLOCK HERE
+    fetch("/api/referral-config", { credentials: "include" })
+      .then(res => res.json())
+      .then(data => {
+        setConfig(Array.isArray(data) ? data : [])
+      })
   }
+
+  setLoading(false)
+}
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -74,6 +89,22 @@ export default function ReferralConfigPage() {
       <h1 className="text-2xl font-semibold">
         Referral Configuration
       </h1>
+
+      {/* ================= EXISTING CONFIG (OPTIONAL UI) ================= */}
+      {config.length > 0 && (
+        <div className="bg-white p-6 rounded-xl shadow space-y-3">
+          <h2 className="font-semibold mb-2">Current Levels</h2>
+
+          {config.map(item => (
+            <div key={item.level} className="flex justify-between">
+              <span>Level {item.level}</span>
+              <span className="font-semibold text-green-600">
+                {item.commission}%
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* LEVELS */}
       <div>
@@ -118,13 +149,15 @@ export default function ReferralConfigPage() {
         </select>
       </div>
 
-      {/* MAX CAP */}
+      {/* MAX CAP (OPTIONAL) */}
       <div>
         <label>Max Commission Per Sale (optional)</label>
         <input
           type="number"
           value={maxCap}
-          onChange={(e) => setMaxCap(Number(e.target.value))}
+          onChange={(e) =>
+            setMaxCap(e.target.value ? Number(e.target.value) : "")
+          }
           className="border p-2 rounded w-full"
         />
       </div>

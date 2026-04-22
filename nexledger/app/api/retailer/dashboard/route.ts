@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
+import mongoose from "mongoose"
 
 import SalesInvoice from "@/models/salesInvoice"
 import Item from "@/models/item"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
+import PurchaseInvoice from "@/models/purchaseInvoice"
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,7 +30,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const retailerId = user.userId
+    const retailerId = new mongoose.Types.ObjectId(user.userId)
 
     // ================= DATA =================
 
@@ -60,24 +62,71 @@ export async function GET(req: NextRequest) {
       .select("totalAmount createdAt")
       .lean()
 
-    const topProducts = await SalesInvoice.aggregate([
-      { $match: { retailerId } },
-      { $unwind: "$items" },
-      {
-        $group: {
-          _id: "$items.name",
-          totalSold: { $sum: "$items.quantity" }
+      const topProducts = await SalesInvoice.aggregate([
+  { $match: { retailerId } },
+  { $unwind: "$items" },
+  {
+    $group: {
+      _id: "$items.name",
+      totalSold: { $sum: "$items.quantity" }
+    }
+  },
+  { $sort: { totalSold: -1 } },
+  { $limit: 5 },
+
+  // ✅ ADD THIS
+  {
+    $project: {
+      _id: 0,
+      name: "$_id",
+      totalSold: 1
+    }
+  }
+])
+
+    // ================= PURCHASE TOTAL =================
+const purchaseAgg = await PurchaseInvoice.aggregate([
+  {
+    $match: {retailerId}
+  },
+  {
+    $group: {
+      _id: null,
+      totalExpense: { $sum: "$totalAmount" }
+    }
+  }
+])
+
+const totalExpense = purchaseAgg[0]?.totalExpense || 0
+
+// ================= COGS (REAL EXPENSE) =================
+const cogsAgg = await SalesInvoice.aggregate([
+  { $match: { retailerId } },
+  { $unwind: "$items" },
+  {
+    $group: {
+      _id: null,
+      totalCOGS: {
+        $sum: {
+          $multiply: [
+            { $ifNull: ["$items.costPrice", 0] }, 
+            "$items.quantity"
+          ]
         }
-      },
-      { $sort: { totalSold: -1 } },
-      { $limit: 5 }
-    ])
+      }
+    }
+  }
+])
+
+const totalCOGS = cogsAgg[0]?.totalCOGS || 0
 
     return NextResponse.json({
       success: true,
       data: {
         totalRevenue,
         totalSales,
+        totalExpense,
+        totalCOGS,
         lowStockItems,
         recentSales,
         topProducts

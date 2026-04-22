@@ -71,6 +71,12 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
           min: 1
         },
 
+        costPrice: {
+          type: Number,
+          required: true,
+          min: 0
+        },
+
         price: {
           type: Number,
           required: true,

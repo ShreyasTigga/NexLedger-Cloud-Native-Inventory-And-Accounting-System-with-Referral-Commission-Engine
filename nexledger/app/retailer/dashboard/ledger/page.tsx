@@ -19,12 +19,22 @@ export default function LedgerPage() {
 
   useEffect(() => {
     fetch("/api/ledger", { credentials: "include" })
-      .then(res => res.json())
-      .then(data => setEntries(data || []))
+  .then(res => res.json())
+  .then(data => {
+    if (Array.isArray(data)) {
+      setEntries(data)
+    } else if (Array.isArray(data.entries)) {
+      setEntries(data.entries)
+    } else {
+      setEntries([]) // ✅ SAFE fallback
+    }
+  })
   }, [])
 
+  const safeEntries = Array.isArray(entries) ? entries : []
+
   // ================= FILTER =================
-const filteredEntries = entries.filter(e => {
+const filteredEntries = safeEntries.filter(e => {
   if (filter === "all") return true
 
   // fallback for old entries

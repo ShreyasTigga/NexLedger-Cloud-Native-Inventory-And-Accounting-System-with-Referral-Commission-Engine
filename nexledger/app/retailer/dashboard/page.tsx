@@ -9,9 +9,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar
+  ResponsiveContainer
 } from "recharts"
 
 // ================= TYPES =================
@@ -36,8 +34,11 @@ interface Sale {
 interface DashboardData {
   totalRevenue: number
   totalSales: number
+  totalExpense: number
+  totalCOGS: number
   lowStockItems: Item[]
   recentSales?: Sale[]
+  topProducts?: { name: string; totalSold: number }[]
 }
 
 // ================= COMPONENT =================
@@ -50,14 +51,31 @@ export default function DashboardPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
 
-  // ================= FETCH DASHBOARD =================
+  // ================= CALCULATIONS =================
+
+  const profit =
+    (dashboard?.totalRevenue || 0) -
+    (dashboard?.totalCOGS || 0)
+
+  const profitPercentage =
+    dashboard?.totalRevenue
+      ? ((profit / dashboard.totalRevenue) * 100).toFixed(2)
+      : "0"
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR"
+    }).format(amount)
+
+  // ================= FETCH =================
+
   async function fetchDashboard() {
     const data = await apiFetch("/api/retailer/dashboard")
     if (!data) return
     setDashboard(data)
   }
 
-  // ================= FETCH INVENTORY =================
   async function fetchItems() {
     const data = await apiFetch(`/api/inventory/items?page=${page}`)
     if (!data) return
@@ -89,7 +107,8 @@ export default function DashboardPage() {
     return <p className="p-6 text-red-500">Failed to load dashboard</p>
   }
 
-  // ================= REVENUE DATA =================
+  // ================= CHART DATA =================
+
   const revenueMap: Record<string, number> = {}
 
   dashboard?.recentSales?.forEach((sale) => {
@@ -101,39 +120,60 @@ export default function DashboardPage() {
     ([date, revenue]) => ({ date, revenue })
   )
 
-  const inventoryChart = items.map((item) => ({
-    name: item.name,
-    stock: item.stockQuantity
+  const avgExpensePerDay =
+    (dashboard?.totalExpense || 0) /
+    (Object.keys(revenueMap).length || 1)
+
+  const profitData = Object.entries(revenueMap).map(([date, revenue]) => ({
+    date,
+    profit: revenue - avgExpensePerDay
   }))
+
+  // ================= UI =================
 
   return (
     <div className="max-w-7xl mx-auto space-y-10">
 
-      <h1 className="text-2xl font-semibold">
-        Retailer Dashboard
-      </h1>
+      <div>
+        <h1 className="text-2xl font-semibold">Retailer Dashboard</h1>
+        <p className="text-sm text-gray-500">
+          Overview of your business performance
+        </p>
+      </div>
 
       {/* ================= STATS ================= */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
 
         <div className="bg-white p-6 rounded-xl shadow">
           <p className="text-gray-500">Total Revenue</p>
           <p className="text-2xl font-bold text-green-600">
-            ₹{dashboard.totalRevenue}
+            {formatCurrency(dashboard.totalRevenue)}
           </p>
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow">
-          <p className="text-gray-500">Total Sales</p>
-          <p className="text-2xl font-bold">
-            {dashboard.totalSales}
+          <p className="text-gray-500">Total Expense</p>
+          <p className="text-2xl font-bold text-red-500">
+            {formatCurrency(dashboard.totalExpense)}
+          </p>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl shadow">
+          <p className="text-gray-500">Net Profit</p>
+          <p className={`text-2xl font-bold ${
+            profit >= 0 ? "text-green-600" : "text-red-600"
+          }`}>
+            {formatCurrency(profit)}
+          </p>
+          <p className="text-sm text-gray-500">
+            {profitPercentage}% margin
           </p>
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow">
           <p className="text-gray-500">Low Stock Items</p>
           <p className="text-2xl font-bold text-red-500">
-            {dashboard?.lowStockItems?.length ?? 0}
+            {dashboard.lowStockItems?.length ?? 0}
           </p>
         </div>
 
@@ -141,13 +181,11 @@ export default function DashboardPage() {
 
       {/* ================= LOW STOCK ================= */}
       <div className="bg-white p-6 rounded-xl shadow">
-        <h2 className="font-semibold mb-3">
-          Low Stock Alerts
-        </h2>
+        <h2 className="font-semibold mb-3">Low Stock Alerts</h2>
 
-        {(dashboard?.lowStockItems?.length ?? 0) === 0 ? (
-          <p className="text-sm text-gray-500">
-            All products are sufficiently stocked ✅
+        {(dashboard.lowStockItems?.length ?? 0) === 0 ? (
+          <p className="text-sm text-gray-500 text-center py-6">
+            📦 All products are sufficiently stocked
           </p>
         ) : (
           dashboard.lowStockItems.map((item) => (
@@ -161,21 +199,76 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* ================= REVENUE CHART ================= */}
-      <div className="bg-white p-6 rounded-xl shadow">
-        <h2 className="font-semibold mb-4">Revenue Trend</h2>
+      {/* ================= CHARTS ================= */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-        {revenueData.length === 0 ? (
-          <p className="text-sm text-gray-500">No sales data</p>
+        {/* Revenue */}
+        <div className="bg-white p-6 rounded-xl shadow">
+          <h2 className="font-semibold mb-4">Revenue Trend</h2>
+
+          {revenueData.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-6">
+              📊 No sales data available
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={revenueData}>
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip formatter={(v: any) => formatCurrency(Number(v || 0))} />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#2563eb"
+                  strokeWidth={3}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Profit */}
+        <div className="bg-white p-6 rounded-xl shadow">
+          <h2 className="font-semibold mb-4">Profit Trend</h2>
+
+          {profitData.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-6">
+              📊 No data available
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={profitData}>
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip formatter={(v: any) => formatCurrency(Number(v || 0))} />
+                <Line
+                  type="monotone"
+                  dataKey="profit"
+                  stroke="#16a34a"
+                  strokeWidth={3}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+      </div>
+
+      {/* ================= TOP PRODUCTS ================= */}
+      <div className="bg-white p-6 rounded-xl shadow">
+        <h2 className="font-semibold mb-4">Top Selling Products</h2>
+
+        {!dashboard.topProducts || dashboard.topProducts.length === 0 ? (
+          <p className="text-sm text-gray-500 text-center py-6">
+            📦 No product data available
+          </p>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={revenueData}>
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="revenue" />
-            </LineChart>
-          </ResponsiveContainer>
+          dashboard.topProducts.map((item, i) => (
+            <div key={i} className="flex justify-between py-2 border-b text-sm">
+              <span>{item.name}</span>
+              <span className="font-medium">{item.totalSold}</span>
+            </div>
+          ))
         )}
       </div>
 

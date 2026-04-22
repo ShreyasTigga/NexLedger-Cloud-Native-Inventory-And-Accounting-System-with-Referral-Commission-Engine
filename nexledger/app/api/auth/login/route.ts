@@ -88,12 +88,17 @@ export async function POST(req: NextRequest) {
     // ================= COOKIES =================
 
     // 🔐 Access Token (short-lived)
-    res.cookies.set("accessToken", accessToken, {
+    const tokenName =
+      user.role === "retailer"
+      ? "retailerToken"
+      : "customerToken"
+
+    res.cookies.set(tokenName, accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 15 // 15 minutes
+      maxAge: 60 * 15
     })
 
     // 🔐 Refresh Token (long-lived)

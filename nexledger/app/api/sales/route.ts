@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
           itemId: product._id,
           name: product.name,
           quantity: item.quantity,
+          costPrice: product.costPrice,
           price,
           taxRate,
           cgst,

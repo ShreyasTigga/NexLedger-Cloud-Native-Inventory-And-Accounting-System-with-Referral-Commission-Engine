@@ -3,6 +3,7 @@
 import { ReactNode } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   LayoutDashboard,
   Package,
@@ -18,6 +19,7 @@ export default function DashboardLayout({
   children: ReactNode
 }) {
   const pathname = usePathname()
+  const router = useRouter()
 
   const BASE = "/retailer/dashboard"
 
@@ -31,12 +33,21 @@ export default function DashboardLayout({
   ]
 
   const handleLogout = async () => {
-  await fetch("/api/auth/logout", {
-    method: "POST",
-    credentials: "include"
-  })
+  try {
+    const res = await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include"
+    })
 
-  window.location.href = "/retailer/login"
+    if (!res.ok) {
+      console.error("Logout failed")
+    }
+  } catch (err) {
+    console.error("Logout error:", err)
+  } finally {
+    
+    router.push("/retailer/login")
+  }
 }
 
   const userName = "Admin User"
