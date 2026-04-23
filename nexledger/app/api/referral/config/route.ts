@@ -14,7 +14,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const config = await ReferralConfig.findOne({ isActive: true })
+    // ✅ FIX: get config for THIS retailer
+    const config = await ReferralConfig.findOne({
+      retailerId: user.userId,
+      isActive: true
+    })
 
     return NextResponse.json(config)
 
@@ -54,22 +58,24 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 🔥 deactivate old config
-    await ReferralConfig.updateMany(
-      { isActive: true },
-      { isActive: false }
+    // ✅ FIX: update ONLY this retailer
+    const config = await ReferralConfig.findOneAndUpdate(
+      { retailerId: user.userId },
+      {
+        retailerId: user.userId, // ✅ IMPORTANT
+        levels,
+        percentages,
+        commissionType,
+        maxCommissionPerSale,
+        isActive: true
+      },
+      {
+        upsert: true, // create if not exists
+        new: true
+      }
     )
 
-    // 🔥 create new config
-    const newConfig = await ReferralConfig.create({
-      levels,
-      percentages,
-      commissionType,
-      maxCommissionPerSale,
-      isActive: true
-    })
-
-    return NextResponse.json(newConfig)
+    return NextResponse.json(config)
 
   } catch (err: any) {
     return NextResponse.json(

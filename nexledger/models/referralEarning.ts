@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document, models, model } from "mongoose"
 
 export interface ReferralEarningDocument extends Document {
+  retailerId: mongoose.Types.ObjectId
   userId: mongoose.Types.ObjectId
   fromUserId: mongoose.Types.ObjectId
   level: number
@@ -11,6 +12,13 @@ export interface ReferralEarningDocument extends Document {
 
 const ReferralEarningSchema = new Schema<ReferralEarningDocument>(
   {
+    retailerId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true
+    },
+
     userId: {
       type: Schema.Types.ObjectId,
       ref: "Customer",
