@@ -9,7 +9,6 @@ export async function POST(req: NextRequest) {
 
     let user: any = null
 
-    // 🔐 Try to get user (optional cleanup)
     try {
       user = await getUserFromRequest(req)
     } catch {}
@@ -22,11 +21,19 @@ export async function POST(req: NextRequest) {
 
     const res = NextResponse.json({ message: "Logged out" })
 
-    // ✅ Clear ALL auth cookies (multi-role safe)
-    res.cookies.delete("retailerToken")
-    res.cookies.delete("retailerRefreshToken")
-    res.cookies.delete("customerToken")
-    res.cookies.delete("customerRefreshToken")
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax" as const,
+      path: "/",
+      expires: new Date(0)
+    }
+
+    // 🔥 Clear ALL cookies properly
+    res.cookies.set("retailerToken", "", cookieOptions)
+    res.cookies.set("retailerRefreshToken", "", cookieOptions)
+    res.cookies.set("customerToken", "", cookieOptions)
+    res.cookies.set("customerRefreshToken", "", cookieOptions)
 
     return res
 

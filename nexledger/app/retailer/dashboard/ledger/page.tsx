@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { apiFetch } from "@/lib/apiFetch"
 
 interface LedgerEntry {
   _id: string
@@ -18,18 +19,22 @@ export default function LedgerPage() {
   const [filter, setFilter] = useState("all")
 
   useEffect(() => {
-    fetch("/api/ledger", { credentials: "include" })
-  .then(res => res.json())
-  .then(data => {
+  const fetchLedger = async () => {
+    const data = await apiFetch("/api/ledger")
+
+    if (!data) return
+
     if (Array.isArray(data)) {
       setEntries(data)
     } else if (Array.isArray(data.entries)) {
       setEntries(data.entries)
     } else {
-      setEntries([]) // ✅ SAFE fallback
+      setEntries([])
     }
-  })
-  }, [])
+  }
+
+  fetchLedger()
+}, [])
 
   const safeEntries = Array.isArray(entries) ? entries : []
 

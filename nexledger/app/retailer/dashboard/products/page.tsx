@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { apiFetch } from "@/lib/apiFetch"
 
 interface Product {
   _id: string
@@ -54,17 +55,12 @@ export default function ProductsPage() {
 
   // 🔥 Fetch products
   const fetchProducts = async () => {
-    const res = await fetch(
-      `/api/inventory/items?search=${search}&page=${page}`,
-      { credentials: "include" }
+    const data = await apiFetch(
+      `/api/inventory/items?search=${search}&page=${page}`
     )
 
-    if (res.status === 401) {
-      window.location.href = "/retailer/login"
-      return
-    }
+    if (!data) return
 
-    const data = await res.json()
     setProducts(data.products || [])
     setTotalPages(data.totalPages || 1)
   }
@@ -84,10 +80,9 @@ export default function ProductsPage() {
       setCategories([...categories, form.category])
     }
 
-    const res = await fetch("/api/inventory/items", {
+    const data = await apiFetch("/api/inventory/items", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({
         ...form,
         costPrice: Number(form.costPrice),
@@ -97,7 +92,10 @@ export default function ProductsPage() {
       })
     })
 
-    if (res.ok) {
+    if (!data) {
+  alert("Error creating product")
+  return
+  } else {
       setForm({
         name: "",
         sku: "",
@@ -112,17 +110,13 @@ export default function ProductsPage() {
       })
 
       fetchProducts()
-    } else {
-      const error = await res.json()
-      alert(error.error || "Error creating product")
     }
   }
 
   const deleteProduct = async (id: string) => {
-    await fetch("/api/inventory/items", {
+    await apiFetch("/api/inventory/items", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({ id })
     })
 
@@ -134,10 +128,9 @@ export default function ProductsPage() {
   }
 
   const updateProduct = async () => {
-    const res = await fetch("/api/inventory/items", {
+    const data = await apiFetch("/api/inventory/items", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({
         id: editingProduct._id,
         updates: {
@@ -147,14 +140,13 @@ export default function ProductsPage() {
       })
     })
 
-    const data = await res.json()
-
-    if (res.ok) {
+    if (!data) {
+      alert("Failed to update product")
+      return
+    } else {
       alert("Product updated")
       setEditingProduct(null)
       fetchProducts()
-    } else {
-      alert(data.error)
     }
   }
 

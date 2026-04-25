@@ -24,12 +24,14 @@ const UserSchema = new Schema<UserDocument>(
     email: {
       type: String,
       sparse: true,
-      lowercase: true // ✅ good practice
+      lowercase: true,
+      unique: true 
     },
 
     phone: {
       type: String,
-      sparse: true
+      sparse: true,
+      unique: true
     },
 
     password: {

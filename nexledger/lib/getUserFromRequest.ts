@@ -1,14 +1,21 @@
-// lib/getUserFromRequest.ts
-
 import { NextRequest } from "next/server"
 import jwt from "jsonwebtoken"
 
 export async function getUserFromRequest(req: NextRequest) {
   try {
-    // ✅ ALWAYS use request cookies
-    const token =
-      req.cookies.get("retailerToken")?.value ||
-      req.cookies.get("customerToken")?.value
+    const retailerToken = req.cookies.get("retailerToken")?.value
+    const customerToken = req.cookies.get("customerToken")?.value
+
+    let token: string | undefined
+    let tokenType: "retailer" | "customer" | null = null
+
+    if (retailerToken) {
+      token = retailerToken
+      tokenType = "retailer"
+    } else if (customerToken) {
+      token = customerToken
+      tokenType = "customer"
+    }
 
     if (!token) {
       console.log("❌ No token found")
@@ -25,7 +32,10 @@ export async function getUserFromRequest(req: NextRequest) {
       retailerId?: string
     }
 
-    return decoded
+    return {
+      ...decoded,
+      tokenType
+    }
 
   } catch (err) {
     console.log("❌ Token error:", err)

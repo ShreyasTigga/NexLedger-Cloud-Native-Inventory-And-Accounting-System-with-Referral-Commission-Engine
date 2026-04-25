@@ -87,28 +87,55 @@ export async function POST(req: NextRequest) {
 
     // ================= COOKIES =================
 
-    // 🔐 Access Token (short-lived)
-    const tokenName =
-      user.role === "retailer"
-      ? "retailerToken"
-      : "customerToken"
+// 🔐 Decide cookie names
+const isRetailer = user.role === "retailer"
 
-    res.cookies.set(tokenName, accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 15
-    })
+const accessTokenName = isRetailer
+  ? "retailerToken"
+  : "customerToken"
 
-    // 🔐 Refresh Token (long-lived)
-    res.cookies.set("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7 // 7 days
-    })
+const refreshTokenName = isRetailer
+  ? "retailerRefreshToken"
+  : "customerRefreshToken"
+
+// 🔥 CLEAR OTHER ROLE COOKIE (VERY IMPORTANT)
+res.cookies.set("retailerToken", "", {
+  expires: new Date(0),
+  path: "/"
+})
+
+res.cookies.set("customerToken", "", {
+  expires: new Date(0),
+  path: "/"
+})
+
+res.cookies.set("retailerRefreshToken", "", {
+  expires: new Date(0),
+  path: "/"
+})
+
+res.cookies.set("customerRefreshToken", "", {
+  expires: new Date(0),
+  path: "/"
+})
+
+// 🔐 SET ACCESS TOKEN
+res.cookies.set(accessTokenName, accessToken, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  path: "/",
+  maxAge: 60 * 15
+})
+
+// 🔐 SET REFRESH TOKEN
+res.cookies.set(refreshTokenName, refreshToken, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  path: "/",
+  maxAge: 60 * 60 * 24 * 7
+})
 
     return res
 

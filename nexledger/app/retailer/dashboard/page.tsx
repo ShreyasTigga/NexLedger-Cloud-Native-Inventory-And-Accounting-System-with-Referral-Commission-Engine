@@ -72,7 +72,10 @@ export default function DashboardPage() {
 
   async function fetchDashboard() {
     const data = await apiFetch("/api/retailer/dashboard")
-    if (!data) return
+    if (!data) {
+      console.error("Dashboard fetch failed")
+      return
+    }
     setDashboard(data)
   }
 

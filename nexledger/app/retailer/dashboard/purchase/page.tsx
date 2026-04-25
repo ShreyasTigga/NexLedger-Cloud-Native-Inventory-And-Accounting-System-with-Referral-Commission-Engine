@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { apiFetch } from "@/lib/apiFetch"
 
 interface Item {
   _id: string
@@ -35,16 +36,20 @@ export default function PurchasePage() {
 
   // 🔥 Fetch products
   useEffect(() => {
-    fetch("/api/inventory/items?page=1&limit=100", {credentials: "include"}) 
-      .then(res => res.json())
-      .then(data => setProducts(data.products || []))
+    apiFetch("/api/inventory/items?page=1&limit=100")
+      .then(data => {
+        if (!data) return
+        setProducts(data.products || [])
+      })
   }, [])
 
   // 🔥 Fetch suppliers
   useEffect(() => {
-    fetch("/api/suppliers", {credentials: "include"})
-      .then(res => res.json())
-      .then(data => setSuppliers(data.suppliers || []))
+    apiFetch("/api/suppliers")
+      .then(data => {
+        if (!data) return
+        setSuppliers(data.suppliers || [])
+      })
   }, [])
 
   // 🔥 Fetch invoices
@@ -53,11 +58,9 @@ export default function PurchasePage() {
   }, [invoicePage])
 
   const fetchInvoices = async () => {
-    const res = await fetch(`/api/inventory/purchase?page=${invoicePage}`, {
-      credentials: "include"
-    })
+    const data = await apiFetch(`/api/inventory/purchase?page=${invoicePage}`)
 
-    const data = await res.json()
+    if (!data) return
 
     setInvoices(data.invoices || [])
     setInvoiceTotalPages(data.totalPages || 1)
@@ -105,9 +108,8 @@ export default function PurchasePage() {
       return
     }
 
-    const res = await fetch("/api/inventory/purchase", {
+    const data = await apiFetch("/api/inventory/purchase", {
       method: "POST",
-      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         invoiceNumber,
@@ -116,20 +118,19 @@ export default function PurchasePage() {
       })
     })
 
-    const data = await res.json()
-
-    if (res.ok) {
-      alert("Invoice Saved Successfully ✅")
-
-      // 🔥 Reset
-      setInvoiceNumber("INV-" + Date.now())
-      setSupplierId("")
-      setItems([{ productId: "", quantity: 0, purchasePrice: 0 }])
-
-      fetchInvoices()
-    } else {
-      alert(data.error || "Error saving invoice")
+    if (!data) {
+      alert("Error saving invoice")
+      return
     }
+
+    alert("Invoice Saved Successfully ✅")
+
+    // 🔥 Reset
+    setInvoiceNumber("INV-" + Date.now())
+    setSupplierId("")
+    setItems([{ productId: "", quantity: 0, purchasePrice: 0 }])
+
+    fetchInvoices()
   }
 
   return (
@@ -142,7 +143,6 @@ export default function PurchasePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-          {/* Invoice */}
           <div>
             <label className="text-sm text-gray-500">Invoice ID</label>
             <input
@@ -153,7 +153,6 @@ export default function PurchasePage() {
             />
           </div>
 
-          {/* Supplier */}
           <div>
             <label className="text-sm text-gray-500">Supplier</label>
             <select
@@ -169,7 +168,6 @@ export default function PurchasePage() {
               ))}
             </select>
 
-            {/* OPTIONAL: ADD SUPPLIER */}
             <button
               onClick={() => window.location.href = "/retailer/dashboard/suppliers"}
               className="text-blue-600 text-sm mt-2"
@@ -180,7 +178,7 @@ export default function PurchasePage() {
 
         </div>
 
-        {/* ITEMS */}
+        {/* ITEMS TABLE */}
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -196,7 +194,6 @@ export default function PurchasePage() {
             <tbody>
               {items.map((item, index) => (
                 <tr key={index} className="border-b">
-
                   <td className="p-3">
                     <select
                       className="border p-2 rounded w-full"
@@ -248,14 +245,12 @@ export default function PurchasePage() {
                       Remove
                     </button>
                   </td>
-
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        {/* ACTIONS */}
         <div className="flex justify-between items-center">
           <button
             onClick={addRow}
@@ -278,7 +273,7 @@ export default function PurchasePage() {
 
       </div>
 
-      {/* INVOICE TABLE */}
+      {/* INVOICES TABLE (unchanged) */}
       <div className="bg-white p-6 rounded-xl shadow-md">
 
         <h3 className="text-lg font-semibold mb-4">Invoices</h3>
@@ -298,8 +293,6 @@ export default function PurchasePage() {
             {invoices.map(inv => (
               <tr key={inv._id} className="border-b">
                 <td className="p-3">{inv.invoiceNumber}</td>
-
-                {/* ✅ FIXED */}
                 <td className="p-3">{inv.supplierId?.name}</td>
 
                 <td className="p-3">
@@ -318,7 +311,6 @@ export default function PurchasePage() {
           </tbody>
         </table>
 
-        {/* PAGINATION */}
         <div className="flex justify-center gap-4 mt-4">
           <button
             disabled={invoicePage === 1}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { apiFetch } from "@/lib/apiFetch"
 
 interface Supplier {
   _id: string
@@ -23,10 +24,10 @@ export default function SupplierPage() {
   const router = useRouter()
 
   const fetchSuppliers = async () => {
-    const res = await fetch("/api/suppliers", {
-      credentials: "include"
-    })
-    const data = await res.json()
+    const data = await apiFetch("/api/suppliers")
+
+    if (!data) return
+
     setSuppliers(data.suppliers || [])
   }
 
@@ -39,26 +40,24 @@ export default function SupplierPage() {
   }
 
   const handleSubmit = async (e: any) => {
-  e.preventDefault()
+    e.preventDefault()
 
-  const res = await fetch("/api/suppliers", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(form)
-  })
+    const data = await apiFetch("/api/suppliers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form)
+    })
 
-  if (res.ok) {
+    if (!data) {
+      alert("Error creating supplier")
+      return
+    }
+
     setForm({ name: "", phone: "", email: "" })
 
     // Navigate ONLY on success
-    router.replace("/retailer/dashboard/products")
-    
-  } else {
-    const err = await res.json()
-    alert(err.error)
+    router.replace("/retailer/dashboard/purchase")
   }
-}
 
   return (
     <div className="max-w-5xl mx-auto space-y-10">

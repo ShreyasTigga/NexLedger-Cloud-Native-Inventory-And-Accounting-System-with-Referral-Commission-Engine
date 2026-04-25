@@ -149,6 +149,7 @@ export async function POST(req: NextRequest) {
         saleId: invoiceId!,
         customerId,
         totalAmount,
+        retailerId: new mongoose.Types.ObjectId(user.userId),
         session: session ?? undefined
       })
 

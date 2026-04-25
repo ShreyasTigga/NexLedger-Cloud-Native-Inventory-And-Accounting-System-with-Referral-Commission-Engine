@@ -7,10 +7,31 @@ export default function WalletPage() {
   const [data, setData] = useState<any>(null)
 
   useEffect(() => {
-    fetch("/api/customer/wallet", { credentials: "include" })
-      .then(res => res.json())
-      .then(setData)
-  }, [])
+  fetch("/api/customer/wallet", { credentials: "include" })
+    .then(res => {
+      if (!res.ok) {
+        throw new Error("Unauthorized")
+      }
+      return res.json()
+    })
+    .then(data => {
+      setData({
+        walletBalance: data.walletBalance || 0,
+        recentEarnings: Array.isArray(data.recentEarnings)
+          ? data.recentEarnings
+          : []
+      })
+    })
+    .catch(err => {
+      console.error(err)
+
+      // ✅ Prevent crash
+      setData({
+        walletBalance: 0,
+        recentEarnings: []
+      })
+    })
+}, [])
 
   if (!data) return <p className="p-6">Loading...</p>
 
@@ -33,7 +54,7 @@ export default function WalletPage() {
           Recent Earnings
         </h2>
 
-        {data.recentEarnings.length === 0 ? (
+        {data.recentEarnings?.length === 0 ? (
           <p>No earnings yet</p>
         ) : (
           data.recentEarnings.map((e: any, i: number) => (

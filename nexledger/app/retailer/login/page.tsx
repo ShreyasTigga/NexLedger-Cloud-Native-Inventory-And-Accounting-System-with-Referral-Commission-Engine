@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { apiFetch } from "@/lib/apiFetch"
 
 export default function RetailerLoginPage() {
   const router = useRouter()
@@ -11,25 +12,22 @@ export default function RetailerLoginPage() {
   const [error, setError] = useState("")
 
   async function handleLogin() {
-    setError("")
+  setError("")
 
-    const res = await fetch("/api/auth/login", {
+  try {
+    const data = await apiFetch("/api/auth/login", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
       body: JSON.stringify({
         identifier,
         password
       })
     })
 
-    const data = await res.json()
+    if (!data) return
 
-    if (!res.ok) {
-      setError(data.error)
-      return
-    }
+    // 🔥 STORE TOKENS
+    localStorage.setItem("accessToken", data.accessToken)
+    localStorage.setItem("refreshToken", data.refreshToken)
 
     if (data.role !== "retailer") {
       setError("Not a retailer account")
@@ -37,7 +35,11 @@ export default function RetailerLoginPage() {
     }
 
     router.push("/retailer/dashboard")
+
+  } catch (err: any) {
+    setError(err.message || "Login failed")
   }
+}
 
   return (
     <div className="max-w-md mx-auto p-6 space-y-4">

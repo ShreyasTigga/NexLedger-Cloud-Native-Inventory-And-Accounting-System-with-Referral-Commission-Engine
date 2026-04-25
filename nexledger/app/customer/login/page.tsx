@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react"
 import { useRouter } from "next/navigation"
+import { apiFetch } from "@/lib/apiFetch"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -18,30 +19,30 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const data = await apiFetch("/api/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        credentials: "include", // ✅ IMPORTANT
         body: JSON.stringify({
-          identifier: email, // ✅ FIXED
+          identifier: email,
           password
         })
       })
 
-      const data = await res.json()
+      if (!data) return
 
-      if (!res.ok) {
-        setError(data.error || "Login failed")
+      // 🔥 STORE TOKENS (CRITICAL)
+      localStorage.setItem("accessToken", data.accessToken)
+      localStorage.setItem("refreshToken", data.refreshToken)
+
+      // 🔥 ROLE CHECK (OPTIONAL BUT GOOD)
+      if (data.role !== "customer") {
+        setError("Not a customer account")
         return
       }
 
       router.push("/customer/shop")
 
-    } catch (err) {
-      console.error(err)
-      setError("Something went wrong")
+    } catch (err: any) {
+      setError(err.message || "Login failed")
     } finally {
       setLoading(false)
     }

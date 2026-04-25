@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { apiFetch } from "@/lib/apiFetch"
 
 export default function ReferralConfigPage() {
 
@@ -13,18 +14,16 @@ export default function ReferralConfigPage() {
 
   // ================= FETCH =================
   useEffect(() => {
-    fetch("/api/referral-config", { credentials: "include" })
-      .then(res => res.json())
+    apiFetch("/api/referral-config")
       .then(data => {
-        // ✅ Handle array response (your current API)
+        if (!data) return
+
         if (Array.isArray(data)) {
           setConfig(data)
 
-          // OPTIONAL: auto-fill form from config
           setLevels(data.length)
           setPercentages(data.map((d: any) => d.commission))
         } else {
-          // fallback (future structure)
           setLevels(data?.levels || 1)
           setPercentages(data?.percentages || [0])
           setCommissionType(data?.commissionType || "percentage")
@@ -48,40 +47,41 @@ export default function ReferralConfigPage() {
 
   // ================= SAVE =================
   const saveConfig = async () => {
-  setLoading(true)
+    setLoading(true)
 
-  const res = await fetch("/api/referral/config", {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      levels,
-      percentages,
-      commissionType,
-      maxCommissionPerSale: maxCap || undefined,
-      isActive: true
+    const data = await apiFetch("/api/referral/config", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        levels,
+        percentages,
+        commissionType,
+        maxCommissionPerSale: maxCap || undefined,
+        isActive: true
+      })
     })
-  })
 
-  const data = await res.json()
+    if (!data) {
+      alert("Error saving config")
+      setLoading(false)
+      return
+    }
 
-  if (!res.ok) {
-    alert(data.error)
-  } else {
     alert("Config saved successfully ✅")
 
-    // ✅ ADD THIS BLOCK HERE
-    fetch("/api/referral-config", { credentials: "include" })
-      .then(res => res.json())
-      .then(data => {
-        setConfig(Array.isArray(data) ? data : [])
-      })
-  }
+    // 🔁 REFETCH
+    const updatedData = await apiFetch("/api/referral-config")
 
-  setLoading(false)
-}
+    if (updatedData && Array.isArray(updatedData)) {
+      setConfig(updatedData)
+    } else {
+      setConfig([])
+    }
+
+    setLoading(false)
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -90,7 +90,7 @@ export default function ReferralConfigPage() {
         Referral Configuration
       </h1>
 
-      {/* ================= EXISTING CONFIG (OPTIONAL UI) ================= */}
+      {/* ================= EXISTING CONFIG ================= */}
       {config.length > 0 && (
         <div className="bg-white p-6 rounded-xl shadow space-y-3">
           <h2 className="font-semibold mb-2">Current Levels</h2>
@@ -149,7 +149,7 @@ export default function ReferralConfigPage() {
         </select>
       </div>
 
-      {/* MAX CAP (OPTIONAL) */}
+      {/* MAX CAP */}
       <div>
         <label>Max Commission Per Sale (optional)</label>
         <input

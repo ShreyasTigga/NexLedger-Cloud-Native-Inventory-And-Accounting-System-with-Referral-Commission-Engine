@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { apiFetch } from "@/lib/apiFetch"
 
 interface Invoice {
   _id: string
@@ -24,23 +25,16 @@ export default function SalesDashboard() {
     async function fetchData() {
       try {
         setLoading(true)
-        const res = await fetch("/api/sales", {
-          credentials: "include"
-        })
 
-let json = null
+        const data = await apiFetch("/api/sales")
 
-try {
-  json = await res.json()
-} catch {
-  throw new Error("Invalid server response")
-}
+        if (!data) {
+          setError("Failed to fetch sales data")
+          return
+        }
 
-if (!res.ok) {
-  throw new Error(json?.error || "Request failed")
-}
+        setData(data)
 
-setData(json)
       } catch (err: any) {
         setError(err.message)
       } finally {

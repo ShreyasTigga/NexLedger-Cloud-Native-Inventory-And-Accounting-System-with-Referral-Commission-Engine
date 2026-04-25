@@ -4,11 +4,14 @@ export interface CustomerDocument extends Document {
   userId: mongoose.Types.ObjectId
   retailerId: mongoose.Types.ObjectId
 
+  name: string
+  phone: string
+  email?: string
+
   referralCode: string
   referredBy?: mongoose.Types.ObjectId
 
-  level: number 
-
+  level: number
   walletBalance: number
 
   createdAt: Date
@@ -31,34 +34,55 @@ const CustomerSchema = new Schema<CustomerDocument>(
       index: true
     },
 
-    referralCode: {
+    name: {
       type: String,
       required: true,
-      unique: true,
-      sparse: true 
+      trim: true,
+      minlength: 2
+    },
+
+    phone: {
+      type: String,
+      required: true,
+      match: [/^[6-9]\d{9}$/, "Invalid phone number"]
+    },
+
+    email: {
+      type: String,
+      match: [/^\S+@\S+\.\S+$/, "Invalid email"]
+    },
+
+    referralCode: {
+      type: String,
+      required: true
     },
 
     referredBy: {
       type: Schema.Types.ObjectId,
       ref: "Customer",
-      index: true 
+      index: true
     },
 
     level: {
       type: Number,
-      default: 0 // 
+      default: 0
     },
 
     walletBalance: {
       type: Number,
-      default: 0
+      default: 0,
+      min: 0
     }
   },
   { timestamps: true }
 )
 
-// compound index (very useful later)
 CustomerSchema.index({ retailerId: 1, level: 1 })
+
+CustomerSchema.index(
+  { retailerId: 1, referralCode: 1 },
+  { unique: true }
+)
 
 const Customer =
   (models.Customer as mongoose.Model<CustomerDocument>) ||
