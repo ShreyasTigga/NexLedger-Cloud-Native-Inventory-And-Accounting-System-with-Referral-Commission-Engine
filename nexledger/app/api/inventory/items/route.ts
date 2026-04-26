@@ -11,8 +11,19 @@ export async function POST(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "retailer") {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const body = await req.json()
@@ -31,7 +42,7 @@ export async function POST(req: NextRequest) {
     const existingSKU = await Item.findOne({
       sku,
       retailerId: user.userId
-    })
+    }).lean()
 
     if (existingSKU) {
       return NextResponse.json({ error: "SKU already exists" }, { status: 400 })
@@ -41,7 +52,7 @@ export async function POST(req: NextRequest) {
       const existingBarcode = await Item.findOne({
         barcode,
         retailerId: user.userId
-      })
+      }).lean()
 
       if (existingBarcode) {
         return NextResponse.json({ error: "Barcode already exists" }, { status: 400 })
@@ -63,7 +74,7 @@ export async function POST(req: NextRequest) {
       stockQuantity: 0
     })
 
-    return NextResponse.json(item, { status: 201 })
+    return NextResponse.json({ item }, { status: 201 })
 
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
@@ -77,8 +88,19 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "retailer") {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const { searchParams } = new URL(req.url)
@@ -101,7 +123,7 @@ export async function GET(req: NextRequest) {
     }
 
     const products = await Item.find(query)
-      .sort({ createdAt: -1 }) 
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .select("name sku category sellingPrice taxRate stockQuantity")
@@ -126,8 +148,19 @@ export async function DELETE(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "retailer") {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const { id } = await req.json()
@@ -159,8 +192,19 @@ export async function PUT(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "retailer") {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const { id, updates } = await req.json()
@@ -178,7 +222,7 @@ export async function PUT(req: NextRequest) {
         sku: updates.sku,
         retailerId: user.userId,
         _id: { $ne: id }
-      })
+      }).lean()
 
       if (existingSKU) {
         return NextResponse.json({ error: "SKU already exists" }, { status: 400 })
@@ -198,7 +242,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Not found or unauthorized" }, { status: 404 })
     }
 
-    return NextResponse.json(updated)
+    return NextResponse.json({ item: updated })
 
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })

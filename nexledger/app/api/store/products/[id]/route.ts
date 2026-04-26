@@ -3,22 +3,20 @@ import dbConnect from "@/lib/mongodb"
 import mongoose from "mongoose"
 
 import Item from "@/models/item"
-import Customer from "@/models/customer"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> } // ✅ FIXED
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await dbConnect()
 
-    // ✅ Extract properly (Next.js 16)
     const { id } = await params
 
     const user = await getUserFromRequest(req)
 
-    // 🔐 AUTH CHECK
+    // 🔐 AUTH
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -38,28 +36,31 @@ export async function GET(
 
     // 🧠 CUSTOMER FLOW
     if (user.role === "customer") {
-      const customer = await Customer.findOne({
-        userId: user.userId
-      })
-
-      if (!customer) {
+      if (!user.customerId || !user.retailerId) {
         return NextResponse.json(
-          { error: "Customer not found" },
-          { status: 404 }
+          { error: "Invalid token" },
+          { status: 401 }
         )
       }
 
-      retailerId = customer.retailerId
+      retailerId = new mongoose.Types.ObjectId(user.retailerId)
     }
 
     // 🧠 RETAILER FLOW
     else if (user.role === "retailer") {
+      if (!user.userId) {
+        return NextResponse.json(
+          { error: "Invalid token" },
+          { status: 401 }
+        )
+      }
+
       retailerId = new mongoose.Types.ObjectId(user.userId)
     }
 
     else {
       return NextResponse.json(
-        { error: "Invalid role" },
+        { error: "Forbidden" },
         { status: 403 }
       )
     }
@@ -86,7 +87,9 @@ export async function GET(
       )
     }
 
-    return NextResponse.json(product)
+    return NextResponse.json({
+      product
+    })
 
   } catch (err: any) {
     return NextResponse.json(

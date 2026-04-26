@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // FIND USER
+    // FIND USER (optimized)
     const user = await User.findOne({
       $or: [{ email: identifier }, { phone: identifier }]
     })
@@ -47,9 +47,10 @@ export async function POST(req: NextRequest) {
     let extraPayload: any = {}
 
     if (user.role === "customer") {
-      const customer = await Customer.findOne({
-        userId: user._id
-      })
+      const customer = await Customer.findOne(
+        { userId: user._id },
+        { _id: 1, retailerId: 1 }
+      ).lean()
 
       if (!customer) {
         return NextResponse.json(
@@ -76,66 +77,67 @@ export async function POST(req: NextRequest) {
       userId: user._id
     })
 
-    // OPTIONAL: store refresh token in DB (recommended)
+    // OPTIONAL: store refresh token in DB
     user.refreshToken = refreshToken
     await user.save()
 
     const res = NextResponse.json({
       message: "Login successful",
-      role: user.role
+      role: user.role,
+      accessToken,     // ✅ ADDED
+      refreshToken     // ✅ ADDED
     })
 
     // ================= COOKIES =================
 
-// 🔐 Decide cookie names
-const isRetailer = user.role === "retailer"
+    const isRetailer = user.role === "retailer"
 
-const accessTokenName = isRetailer
-  ? "retailerToken"
-  : "customerToken"
+    const accessTokenName = isRetailer
+      ? "retailerToken"
+      : "customerToken"
 
-const refreshTokenName = isRetailer
-  ? "retailerRefreshToken"
-  : "customerRefreshToken"
+    const refreshTokenName = isRetailer
+      ? "retailerRefreshToken"
+      : "customerRefreshToken"
 
-// 🔥 CLEAR OTHER ROLE COOKIE (VERY IMPORTANT)
-res.cookies.set("retailerToken", "", {
-  expires: new Date(0),
-  path: "/"
-})
+    // 🔥 CLEAR OTHER ROLE COOKIE
+    res.cookies.set("retailerToken", "", {
+      expires: new Date(0),
+      path: "/"
+    })
 
-res.cookies.set("customerToken", "", {
-  expires: new Date(0),
-  path: "/"
-})
+    res.cookies.set("customerToken", "", {
+      expires: new Date(0),
+      path: "/"
+    })
 
-res.cookies.set("retailerRefreshToken", "", {
-  expires: new Date(0),
-  path: "/"
-})
+    res.cookies.set("retailerRefreshToken", "", {
+      expires: new Date(0),
+      path: "/"
+    })
 
-res.cookies.set("customerRefreshToken", "", {
-  expires: new Date(0),
-  path: "/"
-})
+    res.cookies.set("customerRefreshToken", "", {
+      expires: new Date(0),
+      path: "/"
+    })
 
-// 🔐 SET ACCESS TOKEN
-res.cookies.set(accessTokenName, accessToken, {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax",
-  path: "/",
-  maxAge: 60 * 15
-})
+    // 🔐 ACCESS TOKEN
+    res.cookies.set(accessTokenName, accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 15
+    })
 
-// 🔐 SET REFRESH TOKEN
-res.cookies.set(refreshTokenName, refreshToken, {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax",
-  path: "/",
-  maxAge: 60 * 60 * 24 * 7
-})
+    // 🔐 REFRESH TOKEN
+    res.cookies.set(refreshTokenName, refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7
+    })
 
     return res
 

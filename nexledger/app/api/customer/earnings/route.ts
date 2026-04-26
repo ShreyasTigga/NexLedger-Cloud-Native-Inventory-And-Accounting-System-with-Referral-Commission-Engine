@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
-import Customer from "@/models/customer"
 import ReferralEarning from "@/models/referralEarning"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
@@ -10,25 +9,46 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "customer") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // 🔐 AUTH CHECK
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      )
     }
 
-    const customer = await Customer.findOne({
-      userId: user.userId
-    })
-
-    if (!customer) {
-      return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+    // 🔐 ROLE CHECK
+    if (user.role !== "customer") {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      )
     }
 
+    // 🔐 TOKEN SAFETY
+    if (!user.customerId) {
+      return NextResponse.json(
+        { error: "Invalid token" },
+        { status: 401 }
+      )
+    }
+
+    const customerId = user.customerId
+
+    // ✅ FIXED: use customerId directly
     const earnings = await ReferralEarning.find({
-      userId: customer._id
+      userId: customerId
     }).sort({ createdAt: -1 })
 
-    return NextResponse.json(earnings)
+    // ✅ FIXED: consistent response
+    return NextResponse.json({
+      earnings
+    })
 
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json(
+      { error: err.message },
+      { status: 500 }
+    )
   }
 }

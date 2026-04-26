@@ -14,7 +14,8 @@ export async function POST(req: NextRequest) {
 
     const authHeader = req.headers.get("authorization")
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    // 🔐 AUTH HEADER CHECK
+    if (!authHeader?.startsWith("Bearer ")) {
       return NextResponse.json(
         { error: "No token" },
         { status: 401 }
@@ -23,8 +24,22 @@ export async function POST(req: NextRequest) {
 
     const refreshToken = authHeader.split(" ")[1]
 
+    if (!refreshToken) {
+      return NextResponse.json(
+        { error: "Invalid token" },
+        { status: 401 }
+      )
+    }
+
     // ================= VERIFY =================
     const decoded: any = verifyRefreshToken(refreshToken)
+
+    if (!decoded?.userId) {
+      return NextResponse.json(
+        { error: "Invalid token" },
+        { status: 401 }
+      )
+    }
 
     const user = await User.findById(decoded.userId)
 
@@ -39,9 +54,10 @@ export async function POST(req: NextRequest) {
     let extraPayload: any = {}
 
     if (user.role === "customer") {
-      const customer = await Customer.findOne({
-        userId: user._id
-      })
+      const customer = await Customer.findOne(
+        { userId: user._id },
+        { _id: 1, retailerId: 1 } // 🔥 optimized
+      ).lean()
 
       if (customer) {
         extraPayload = {

@@ -11,26 +11,33 @@ export async function GET(req: NextRequest) {
   try {
     await dbConnect()
 
-    let user
+    const user = await getUserFromRequest(req)
 
-    // 🔐 SAFE AUTH
-    try {
-      user = await getUserFromRequest(req)
-    } catch {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 }
       )
     }
 
-    if (!user || user.role !== "retailer") {
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
       return NextResponse.json(
-        { success: false, error: "Unauthorized" },
+        { success: false, error: "Forbidden" },
+        { status: 403 }
+      )
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json(
+        { success: false, error: "Invalid token" },
         { status: 401 }
       )
     }
 
-    const retailerId = new mongoose.Types.ObjectId(user.userId)
+    const retailerId = user.userId
 
     // ================= DATA =================
 
@@ -62,63 +69,59 @@ export async function GET(req: NextRequest) {
       .select("totalAmount createdAt")
       .lean()
 
-      const topProducts = await SalesInvoice.aggregate([
-  { $match: { retailerId } },
-  { $unwind: "$items" },
-  {
-    $group: {
-      _id: "$items.name",
-      totalSold: { $sum: "$items.quantity" }
-    }
-  },
-  { $sort: { totalSold: -1 } },
-  { $limit: 5 },
-
-  // ✅ ADD THIS
-  {
-    $project: {
-      _id: 0,
-      name: "$_id",
-      totalSold: 1
-    }
-  }
-])
-
-    // ================= PURCHASE TOTAL =================
-const purchaseAgg = await PurchaseInvoice.aggregate([
-  {
-    $match: {retailerId}
-  },
-  {
-    $group: {
-      _id: null,
-      totalExpense: { $sum: "$totalAmount" }
-    }
-  }
-])
-
-const totalExpense = purchaseAgg[0]?.totalExpense || 0
-
-// ================= COGS (REAL EXPENSE) =================
-const cogsAgg = await SalesInvoice.aggregate([
-  { $match: { retailerId } },
-  { $unwind: "$items" },
-  {
-    $group: {
-      _id: null,
-      totalCOGS: {
-        $sum: {
-          $multiply: [
-            { $ifNull: ["$items.costPrice", 0] }, 
-            "$items.quantity"
-          ]
+    const topProducts = await SalesInvoice.aggregate([
+      { $match: { retailerId } },
+      { $unwind: "$items" },
+      {
+        $group: {
+          _id: "$items.name",
+          totalSold: { $sum: "$items.quantity" }
+        }
+      },
+      { $sort: { totalSold: -1 } },
+      { $limit: 5 },
+      {
+        $project: {
+          _id: 0,
+          name: "$_id",
+          totalSold: 1
         }
       }
-    }
-  }
-])
+    ])
 
-const totalCOGS = cogsAgg[0]?.totalCOGS || 0
+    // ================= PURCHASE TOTAL =================
+    const purchaseAgg = await PurchaseInvoice.aggregate([
+      { $match: { retailerId } },
+      {
+        $group: {
+          _id: null,
+          totalExpense: { $sum: "$totalAmount" }
+        }
+      }
+    ])
+
+    const totalExpense = purchaseAgg[0]?.totalExpense || 0
+
+    // ================= COGS =================
+    const cogsAgg = await SalesInvoice.aggregate([
+      { $match: { retailerId } },
+      { $unwind: "$items" },
+      {
+        $group: {
+          _id: null,
+          totalCOGS: {
+            $sum: {
+              $multiply: [
+                { $ifNull: ["$items.costPrice", 0] },
+                "$items.quantity"
+              ]
+            }
+          }
+        }
+      }
+    ])
+
+    const totalCOGS = cogsAgg[0]?.totalCOGS || 0
 
     return NextResponse.json({
       success: true,

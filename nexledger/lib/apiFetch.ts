@@ -5,6 +5,8 @@ async function refreshAccessToken() {
   try {
     const refreshToken = localStorage.getItem("refreshToken")
 
+    if (!refreshToken) return null
+
     const res = await fetch("/api/auth/refresh", {
       method: "POST",
       headers: {
@@ -20,6 +22,7 @@ async function refreshAccessToken() {
     localStorage.setItem("refreshToken", data.refreshToken)
 
     return data.accessToken
+
   } catch {
     return null
   }
@@ -37,34 +40,35 @@ export async function apiFetch(
       headers: {
         "Content-Type": "application/json",
         ...(options.headers || {}),
-        Authorization: token ? `Bearer ${token}` : ""
+        ...(token && { Authorization: `Bearer ${token}` })
       }
     })
   }
 
   let res = await makeRequest(accessToken)
 
-  // 🔥 HANDLE 401 (TOKEN EXPIRED)
+  // 🔥 HANDLE 401
   if (res.status === 401) {
 
     if (!isRefreshing) {
       isRefreshing = true
 
-      refreshPromise = refreshAccessToken().finally(() => {
-        isRefreshing = false
-      })
+      refreshPromise = refreshAccessToken()
+        .finally(() => {
+          isRefreshing = false
+        })
     }
 
     const newToken = await refreshPromise
 
     if (!newToken) {
-      // ❌ Refresh failed → logout
+      // ❌ Logout
       localStorage.clear()
-      window.location.href = "/login"
+      window.location.href = "/auth/login"
       return null
     }
 
-    // 🔁 Retry request
+    // 🔁 Retry
     res = await makeRequest(newToken)
   }
 

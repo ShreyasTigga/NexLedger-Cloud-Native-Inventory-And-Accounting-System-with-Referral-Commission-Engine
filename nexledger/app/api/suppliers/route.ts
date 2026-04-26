@@ -10,8 +10,19 @@ export async function POST(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "retailer") {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const body = await req.json()
@@ -30,10 +41,16 @@ export async function POST(req: NextRequest) {
       email
     })
 
-    return NextResponse.json(supplier, { status: 201 })
+    return NextResponse.json(
+      { supplier },
+      { status: 201 }
+    )
 
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json(
+      { error: err.message },
+      { status: 500 }
+    )
   }
 }
 
@@ -44,17 +61,35 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "retailer") {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const suppliers = await Supplier.find({
       retailerId: user.userId
-    }).sort({ createdAt: -1 })
+    })
+      .sort({ createdAt: -1 })
+      .lean()
 
-    return NextResponse.json({ suppliers })
+    return NextResponse.json({
+      suppliers
+    })
 
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json(
+      { error: err.message },
+      { status: 500 }
+    )
   }
 }

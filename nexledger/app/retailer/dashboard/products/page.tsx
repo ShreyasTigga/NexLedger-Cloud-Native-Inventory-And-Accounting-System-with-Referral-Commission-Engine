@@ -61,8 +61,8 @@ export default function ProductsPage() {
 
     if (!data) return
 
-    setProducts(data.products || [])
-    setTotalPages(data.totalPages || 1)
+    setProducts(Array.isArray(data?.products) ? data.products : [])
+    setTotalPages(data?.totalPages || 1)
   }
 
   useEffect(() => {
@@ -93,9 +93,9 @@ export default function ProductsPage() {
     })
 
     if (!data) {
-  alert("Error creating product")
-  return
-  } else {
+      alert("Error creating product")
+      return
+    } else {
       setForm({
         name: "",
         sku: "",
@@ -114,11 +114,16 @@ export default function ProductsPage() {
   }
 
   const deleteProduct = async (id: string) => {
-    await apiFetch("/api/inventory/items", {
+    const res = await apiFetch("/api/inventory/items", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id })
     })
+
+    if (!res) {
+      alert("Delete failed")
+      return
+    }
 
     fetchProducts()
   }
@@ -362,7 +367,7 @@ export default function ProductsPage() {
               onChange={(e) =>
                 setEditingProduct({
                   ...editingProduct,
-                  sellingPrice: e.target.value
+                  sellingPrice: Number(e.target.value)
                 })
               }
               className="w-full border p-2 rounded"
@@ -374,7 +379,7 @@ export default function ProductsPage() {
               onChange={(e) =>
                 setEditingProduct({
                   ...editingProduct,
-                  taxRate: e.target.value
+                  taxRate: Number(e.target.value)
                 })
               }
               className="w-full border p-2 rounded"

@@ -39,7 +39,7 @@ export default function PurchasePage() {
     apiFetch("/api/inventory/items?page=1&limit=100")
       .then(data => {
         if (!data) return
-        setProducts(data.products || [])
+        setProducts(Array.isArray(data?.products) ? data.products : [])
       })
   }, [])
 
@@ -48,7 +48,7 @@ export default function PurchasePage() {
     apiFetch("/api/suppliers")
       .then(data => {
         if (!data) return
-        setSuppliers(data.suppliers || [])
+        setSuppliers(Array.isArray(data?.suppliers) ? data.suppliers : [])
       })
   }, [])
 
@@ -62,8 +62,8 @@ export default function PurchasePage() {
 
     if (!data) return
 
-    setInvoices(data.invoices || [])
-    setInvoiceTotalPages(data.totalPages || 1)
+    setInvoices(Array.isArray(data?.invoices) ? data.invoices : [])
+    setInvoiceTotalPages(data?.totalPages || 1)
   }
 
   const addRow = () => {
@@ -273,7 +273,7 @@ export default function PurchasePage() {
 
       </div>
 
-      {/* INVOICES TABLE (unchanged) */}
+      {/* INVOICES TABLE */}
       <div className="bg-white p-6 rounded-xl shadow-md">
 
         <h3 className="text-lg font-semibold mb-4">Invoices</h3>

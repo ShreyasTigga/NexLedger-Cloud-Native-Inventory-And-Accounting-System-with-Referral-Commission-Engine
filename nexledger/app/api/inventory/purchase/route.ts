@@ -18,8 +18,19 @@ export async function POST(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "retailer") {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const body = await req.json()
@@ -39,7 +50,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const supplier = await Supplier.findById(supplierId)
+    const supplier = await Supplier.findById(supplierId).lean()
 
     if (!supplier) {
       return NextResponse.json(
@@ -52,134 +63,134 @@ export async function POST(req: NextRequest) {
     const existingInvoice = await PurchaseInvoice.findOne({
       invoiceNumber,
       retailerId: user.userId
-    })
+    }).lean()
 
     if (existingInvoice) {
       return NextResponse.json({ error: "Invoice already exists" }, { status: 400 })
     }
 
-await session.withTransaction(async () => {
+    await session.withTransaction(async () => {
 
-  let invoiceTotal = 0
-  const processedItems: any[] = []
-  const seenProducts = new Set()
+      let invoiceTotal = 0
+      const processedItems: any[] = []
+      const seenProducts = new Set()
 
-  // ================= PROCESS ITEMS =================
-  for (const entry of items) {
-    const { productId, quantity, purchasePrice } = entry
+      // ================= PROCESS ITEMS =================
+      for (const entry of items) {
+        const { productId, quantity, purchasePrice } = entry
 
-    if (
-      !productId ||
-      !mongoose.Types.ObjectId.isValid(productId) ||
-      quantity <= 0 ||
-      purchasePrice <= 0
-    ) {
-      throw new Error("Invalid item data")
-    }
-
-    if (seenProducts.has(productId)) {
-      throw new Error("Duplicate product in invoice")
-    }
-
-    seenProducts.add(productId)
-
-    const product = await Item.findOne({
-      _id: productId,
-      retailerId: user.userId
-    }).session(session)
-
-    if (!product) {
-      throw new Error("Product not found")
-    }
-
-    const oldQty = product.stockQuantity
-    const oldCost = product.costPrice
-    const totalQty = oldQty + quantity
-
-    let newCostPrice = purchasePrice
-
-    if (oldQty > 0) {
-      newCostPrice =
-        ((oldQty * oldCost) + (quantity * purchasePrice)) / totalQty
-    }
-
-    const totalAmount = quantity * purchasePrice
-
-    await Item.findOneAndUpdate(
-      { _id: productId, retailerId: user.userId },
-      {
-        stockQuantity: totalQty,
-        costPrice: newCostPrice
-      },
-      { session }
-    )
-
-    await StockMovement.create(
-      [
-        {
-          retailerId: user.userId,
-          itemId: productId,
-          type: "purchase",
-          quantity,
-          reference: invoiceNumber
+        if (
+          !productId ||
+          !mongoose.Types.ObjectId.isValid(productId) ||
+          quantity <= 0 ||
+          purchasePrice <= 0
+        ) {
+          throw new Error("Invalid item data")
         }
-      ],
-      { session }
-    )
 
-    processedItems.push({
-      productId,
-      productName: product.name,
-      quantity,
-      purchasePrice,
-      totalAmount
+        if (seenProducts.has(productId)) {
+          throw new Error("Duplicate product in invoice")
+        }
+
+        seenProducts.add(productId)
+
+        const product = await Item.findOne({
+          _id: productId,
+          retailerId: user.userId
+        }).session(session)
+
+        if (!product) {
+          throw new Error("Product not found")
+        }
+
+        const oldQty = product.stockQuantity
+        const oldCost = product.costPrice
+        const totalQty = oldQty + quantity
+
+        let newCostPrice = purchasePrice
+
+        if (oldQty > 0) {
+          newCostPrice =
+            ((oldQty * oldCost) + (quantity * purchasePrice)) / totalQty
+        }
+
+        const totalAmount = quantity * purchasePrice
+
+        await Item.findOneAndUpdate(
+          { _id: productId, retailerId: user.userId },
+          {
+            stockQuantity: totalQty,
+            costPrice: newCostPrice
+          },
+          { session }
+        )
+
+        await StockMovement.create(
+          [
+            {
+              retailerId: user.userId,
+              itemId: productId,
+              type: "purchase",
+              quantity,
+              reference: invoiceNumber
+            }
+          ],
+          { session }
+        )
+
+        processedItems.push({
+          productId,
+          productName: product.name,
+          quantity,
+          purchasePrice,
+          totalAmount
+        })
+
+        invoiceTotal += totalAmount
+      }
+
+      // ================= CREATE INVOICE =================
+      const purchase = await PurchaseInvoice.create(
+        [
+          {
+            retailerId: user.userId,
+            invoiceNumber,
+            supplierId,
+            totalAmount: invoiceTotal,
+            items: processedItems
+          }
+        ],
+        { session }
+      )
+
+      const createdPurchase = purchase[0]
+
+      // ================= LEDGER ENTRY =================
+      await LedgerEntry.insertMany(
+        [
+          {
+            retailerId: user.userId,
+            type: "debit",
+            account: "Purchase",
+            amount: invoiceTotal,
+            referenceId: createdPurchase._id,
+            referenceModel: "Purchase",
+            description: "Stock purchase"
+          },
+          {
+            retailerId: user.userId,
+            type: "credit",
+            account: "Cash",
+            amount: invoiceTotal,
+            referenceId: createdPurchase._id,
+            referenceModel: "Purchase",
+            description: "Payment made"
+          }
+        ],
+        { session }
+      )
+
     })
-
-    invoiceTotal += totalAmount
-  }
-
-  // ================= CREATE INVOICE =================
-  const purchase = await PurchaseInvoice.create(
-    [
-      {
-        retailerId: user.userId,
-        invoiceNumber,
-        supplierId,
-        totalAmount: invoiceTotal,
-        items: processedItems
-      }
-    ],
-    { session }
-  )
-
-  const createdPurchase = purchase[0]
-
-  // ================= LEDGER ENTRY =================
-  await LedgerEntry.insertMany(
-    [
-      {
-        retailerId: user.userId,
-        type: "debit",
-        account: "Purchase",
-        amount: invoiceTotal,
-        referenceId: createdPurchase._id,
-        referenceModel: "Purchase",
-        description: "Stock purchase"
-      },
-      {
-        retailerId: user.userId,
-        type: "credit",
-        account: "Cash",
-        amount: invoiceTotal,
-        referenceId: createdPurchase._id,
-        referenceModel: "Purchase",
-        description: "Payment made"
-      }
-    ],
-    { session }
-  )
-
-})
 
     return NextResponse.json(
       { message: "Purchase invoice created successfully" },
@@ -206,8 +217,19 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "retailer") {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const { searchParams } = new URL(req.url)
@@ -225,7 +247,7 @@ export async function GET(req: NextRequest) {
       .skip(skip)
       .limit(limit)
       .populate("supplierId", "name")
-      .select("invoiceNumber supplierId totalAmount createdAt items") 
+      .select("invoiceNumber supplierId totalAmount createdAt items")
       .lean()
 
     const total = await PurchaseInvoice.countDocuments(query)

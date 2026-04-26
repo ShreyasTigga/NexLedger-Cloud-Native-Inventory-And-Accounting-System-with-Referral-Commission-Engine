@@ -9,17 +9,21 @@ export async function POST(req: NextRequest) {
 
     let user: any = null
 
+    // 🔐 SAFE USER EXTRACTION
     try {
       user = await getUserFromRequest(req)
     } catch {}
 
-    if (user) {
+    // 🔐 CLEAR REFRESH TOKEN IN DB (if valid user)
+    if (user?.userId) {
       await User.findByIdAndUpdate(user.userId, {
         $unset: { refreshToken: "" }
       })
     }
 
-    const res = NextResponse.json({ message: "Logged out" })
+    const res = NextResponse.json({
+      message: "Logged out"
+    })
 
     const cookieOptions = {
       httpOnly: true,
@@ -29,7 +33,7 @@ export async function POST(req: NextRequest) {
       expires: new Date(0)
     }
 
-    // 🔥 Clear ALL cookies properly
+    // 🔥 CLEAR ALL AUTH COOKIES
     res.cookies.set("retailerToken", "", cookieOptions)
     res.cookies.set("retailerRefreshToken", "", cookieOptions)
     res.cookies.set("customerToken", "", cookieOptions)

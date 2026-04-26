@@ -10,23 +10,49 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "customer") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // 🔐 AUTH
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      )
     }
 
-    const customer = await Customer.findOne({
-      userId: user.userId
-    })
+    // 🔐 ROLE
+    if (user.role !== "customer") {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      )
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.customerId) {
+      return NextResponse.json(
+        { error: "Invalid token" },
+        { status: 401 }
+      )
+    }
+
+    const customerId = user.customerId
+
+    // 📦 FETCH CUSTOMER (only needed for wallet)
+    const customer = await Customer.findById(customerId).lean()
 
     if (!customer) {
-      return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+      return NextResponse.json(
+        { error: "Customer not found" },
+        { status: 404 }
+      )
     }
 
+    // 💰 EARNINGS
     const recentEarnings = await ReferralEarning.find({
-      userId: customer._id
+      userId: customerId
     })
       .sort({ createdAt: -1 })
       .limit(5)
+      .lean()
 
     return NextResponse.json({
       walletBalance: customer.walletBalance,
@@ -34,6 +60,9 @@ export async function GET(req: NextRequest) {
     })
 
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json(
+      { error: err.message },
+      { status: 500 }
+    )
   }
 }

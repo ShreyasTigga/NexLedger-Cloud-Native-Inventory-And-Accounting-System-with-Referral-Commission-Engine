@@ -3,7 +3,6 @@ import dbConnect from "@/lib/mongodb"
 import mongoose from "mongoose"
 
 import SalesInvoice from "@/models/salesInvoice"
-import Customer from "@/models/customer"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
 export async function GET(
@@ -13,11 +12,11 @@ export async function GET(
   try {
     await dbConnect()
 
-    // ✅ ALWAYS extract like this
     const { id } = await params
 
     const user = await getUserFromRequest(req)
 
+    // 🔐 AUTH
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -25,7 +24,7 @@ export async function GET(
       )
     }
 
-    // ✅ FIXED: use id (NOT params.id)
+    // 🔐 ID VALIDATION
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: "Invalid invoice ID" },
@@ -34,34 +33,36 @@ export async function GET(
     }
 
     let query: any = {
-      _id: id // ✅ FIXED
+      _id: id
     }
 
     // 🧠 RETAILER FLOW
     if (user.role === "retailer") {
+      if (!user.userId) {
+        return NextResponse.json(
+          { error: "Invalid token" },
+          { status: 401 }
+        )
+      }
+
       query.retailerId = user.userId
     }
 
     // 🧠 CUSTOMER FLOW
     else if (user.role === "customer") {
-
-      const customer = await Customer.findOne({
-        userId: user.userId
-      })
-
-      if (!customer) {
+      if (!user.customerId) {
         return NextResponse.json(
-          { error: "Customer not found" },
-          { status: 404 }
+          { error: "Invalid token" },
+          { status: 401 }
         )
       }
 
-      query.customerId = customer._id
+      query.customerId = user.customerId
     }
 
     else {
       return NextResponse.json(
-        { error: "Invalid role" },
+        { error: "Forbidden" },
         { status: 403 }
       )
     }
@@ -75,7 +76,9 @@ export async function GET(
       )
     }
 
-    return NextResponse.json(invoice)
+    return NextResponse.json({
+      invoice
+    })
 
   } catch (err: any) {
     return NextResponse.json(

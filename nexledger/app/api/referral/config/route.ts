@@ -10,15 +10,25 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "retailer") {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // ✅ FIX: get config for THIS retailer
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    }
+
     const config = await ReferralConfig.findOne({
       retailerId: user.userId,
       isActive: true
-    })
+    }).lean()
 
     return NextResponse.json(config)
 
@@ -37,8 +47,19 @@ export async function POST(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "retailer") {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const body = await req.json()
@@ -47,8 +68,7 @@ export async function POST(req: NextRequest) {
       levels,
       percentages,
       commissionType,
-      maxCommissionPerSale,
-      isActive
+      maxCommissionPerSale
     } = body
 
     if (!levels || !percentages || percentages.length !== levels) {
@@ -58,11 +78,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ✅ FIX: update ONLY this retailer
     const config = await ReferralConfig.findOneAndUpdate(
       { retailerId: user.userId },
       {
-        retailerId: user.userId, // ✅ IMPORTANT
+        retailerId: user.userId,
         levels,
         percentages,
         commissionType,
@@ -70,7 +89,7 @@ export async function POST(req: NextRequest) {
         isActive: true
       },
       {
-        upsert: true, // create if not exists
+        upsert: true,
         new: true
       }
     )

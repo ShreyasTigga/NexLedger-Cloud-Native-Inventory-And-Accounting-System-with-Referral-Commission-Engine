@@ -14,18 +14,19 @@ export default function ReferralConfigPage() {
 
   // ================= FETCH =================
   useEffect(() => {
-    apiFetch("/api/referral-config")
+    apiFetch("/api/referral/config")
       .then(data => {
         if (!data) return
 
         if (Array.isArray(data)) {
           setConfig(data)
-
           setLevels(data.length)
           setPercentages(data.map((d: any) => d.commission))
         } else {
           setLevels(data?.levels || 1)
-          setPercentages(data?.percentages || [0])
+          setPercentages(
+            Array.isArray(data?.percentages) ? data.percentages : [0]
+          )
           setCommissionType(data?.commissionType || "percentage")
           setMaxCap(data?.maxCommissionPerSale || "")
         }
@@ -72,12 +73,22 @@ export default function ReferralConfigPage() {
     alert("Config saved successfully ✅")
 
     // 🔁 REFETCH
-    const updatedData = await apiFetch("/api/referral-config")
+    const updatedData = await apiFetch("/api/referral/config")
 
-    if (updatedData && Array.isArray(updatedData)) {
+    if (!updatedData) {
+      setConfig([])
+    } else if (Array.isArray(updatedData)) {
       setConfig(updatedData)
     } else {
       setConfig([])
+      setLevels(updatedData?.levels || 1)
+      setPercentages(
+        Array.isArray(updatedData?.percentages)
+          ? updatedData.percentages
+          : [0]
+      )
+      setCommissionType(updatedData?.commissionType || "percentage")
+      setMaxCap(updatedData?.maxCommissionPerSale || "")
     }
 
     setLoading(false)

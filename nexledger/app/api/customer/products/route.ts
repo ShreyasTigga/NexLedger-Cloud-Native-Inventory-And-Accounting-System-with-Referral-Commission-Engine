@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import Item from "@/models/item"
-import Customer from "@/models/customer"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
 export async function GET(req: NextRequest) {
@@ -10,6 +9,7 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
+    // 🔐 AUTH
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -21,18 +21,14 @@ export async function GET(req: NextRequest) {
 
     // 🧠 CUSTOMER FLOW
     if (user.role === "customer") {
-      const customer = await Customer.findOne({
-        userId: user.userId
-      })
-
-      if (!customer) {
+      if (!user.retailerId) {
         return NextResponse.json(
-          { error: "Customer not found" },
-          { status: 404 }
+          { error: "Invalid token" },
+          { status: 401 }
         )
       }
 
-      retailerId = customer.retailerId
+      retailerId = user.retailerId
     }
 
     // 🧠 RETAILER FLOW
@@ -52,9 +48,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search")
     const category = searchParams.get("category")
 
-    const query: any = {
-      retailerId
-    }
+    const query: any = { retailerId }
 
     if (search) {
       query.name = { $regex: search, $options: "i" }
@@ -66,7 +60,9 @@ export async function GET(req: NextRequest) {
 
     const products = await Item.find(query).lean()
 
-    return NextResponse.json(products)
+    return NextResponse.json({
+      products
+    })
 
   } catch (err: any) {
     return NextResponse.json(

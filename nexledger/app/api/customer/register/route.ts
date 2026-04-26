@@ -93,8 +93,11 @@ export async function POST(req: NextRequest) {
       if (query.length > 0) {
         const existingUser = await User.findOne({ $or: query }).session(session)
         if (existingUser) {
-          throw new Error("User already exists")
-        }
+  return NextResponse.json(
+    { error: "User already exists" },
+    { status: 400 }
+  )
+}
       }
 
       // ================= HASH PASSWORD =================
@@ -135,7 +138,10 @@ const user = userArr[0]
           }).session(session)
 
           if (!parentCustomer) {
-            throw new Error("Invalid referral code")
+            return NextResponse.json(
+  { error: "Invalid referral code" },
+  { status: 400 }
+)
           }
 
           referredById = parentCustomer._id
@@ -149,7 +155,10 @@ const user = userArr[0]
           }).session(session)
 
           if (!parentRetailer) {
-            throw new Error("Invalid referral code")
+            return NextResponse.json(
+  { error: "Invalid referral code" },
+  { status: 400 }
+)
           }
 
           retailerId = parentRetailer._id
@@ -164,7 +173,10 @@ const user = userArr[0]
         }).session(session)
 
         if (!retailer) {
-          throw new Error("Invalid retailer")
+          return NextResponse.json(
+  { error: "Invalid retailer" },
+  { status: 400 }
+)
         }
 
         retailerId = retailer._id
@@ -186,7 +198,10 @@ const user = userArr[0]
       } while (exists && attempts < 5)
 
       if (attempts === 5) {
-        throw new Error("Failed to generate referral code")
+        return NextResponse.json(
+  { error: "Failed to generate referral code" },
+  { status: 400 }
+)
       }
 
       // ================= CREATE CUSTOMER =================

@@ -3,25 +3,23 @@ import jwt from "jsonwebtoken"
 
 export async function getUserFromRequest(req: NextRequest) {
   try {
-    const retailerToken = req.cookies.get("retailerToken")?.value
-    const customerToken = req.cookies.get("customerToken")?.value
+    const authHeader = req.headers.get("authorization")
 
-    let token: string | undefined
-    let tokenType: "retailer" | "customer" | null = null
-
-    if (retailerToken) {
-      token = retailerToken
-      tokenType = "retailer"
-    } else if (customerToken) {
-      token = customerToken
-      tokenType = "customer"
-    }
-
-    if (!token) {
-      console.log("❌ No token found")
+    // 🔐 Check header
+    if (!authHeader?.startsWith("Bearer ")) {
+      console.log("❌ No Bearer token")
       return null
     }
 
+    // 🔐 Extract token safely
+    const token = authHeader.split(" ")[1]
+
+    if (!token) {
+      console.log("❌ Empty token")
+      return null
+    }
+
+    // 🔐 Verify token
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET!
@@ -32,10 +30,13 @@ export async function getUserFromRequest(req: NextRequest) {
       retailerId?: string
     }
 
-    return {
-      ...decoded,
-      tokenType
+    // 🔐 Safety check
+    if (!decoded?.userId || !decoded?.role) {
+      console.log("❌ Invalid token payload")
+      return null
     }
+
+    return decoded
 
   } catch (err) {
     console.log("❌ Token error:", err)

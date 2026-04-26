@@ -19,8 +19,14 @@ export async function POST(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || (user.role !== "retailer" && user.role !== "customer")) {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // 🔐 ROLE
+    if (user.role !== "retailer" && user.role !== "customer") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const body = await req.json()
@@ -35,19 +41,19 @@ export async function POST(req: NextRequest) {
 
     // ================= ROLE FLOW =================
     if (user.role === "retailer") {
+      if (!user.userId) {
+        return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+      }
+
       retailerId = new mongoose.Types.ObjectId(user.userId)
       customerId = new mongoose.Types.ObjectId(body.customerId)
     } else {
-      const customer = await Customer.findOne({
-        userId: user.userId
-      })
-
-      if (!customer) {
-        return NextResponse.json({ error: "Customer not found" }, { status: 404 })
+      if (!user.customerId || !user.retailerId) {
+        return NextResponse.json({ error: "Invalid token" }, { status: 401 })
       }
 
-      retailerId = customer.retailerId
-      customerId = customer._id
+      retailerId = new mongoose.Types.ObjectId(user.retailerId)
+      customerId = new mongoose.Types.ObjectId(user.customerId)
     }
 
     let invoiceId: mongoose.Types.ObjectId | null = null
@@ -149,56 +155,55 @@ export async function POST(req: NextRequest) {
         saleId: invoiceId!,
         customerId,
         totalAmount,
-        retailerId: new mongoose.Types.ObjectId(user.userId),
+        retailerId, // ✅ FIXED
         session: session ?? undefined
       })
 
       // ================= LEDGER =================
-await LedgerEntry.insertMany(
-  [
-    {
-      retailerId,
-      type: "debit",
-      account: "Customer",
-      amount: totalAmount,
-      referenceId: invoiceId!,
-      referenceModel: "Sale", // ✅ ADD THIS
-      description: "Sale"
-    },
-    {
-      retailerId,
-      type: "credit",
-      account: "Sales",
-      amount: totalAmount - (totalCGST + totalSGST),
-      referenceId: invoiceId!,
-      referenceModel: "Sale", // ✅ ADD THIS
-      description: "Revenue"
-    },
-    {
-      retailerId,
-      type: "credit",
-      account: "CGST Payable",
-      amount: totalCGST,
-      referenceId: invoiceId!,
-      referenceModel: "Sale", // ✅ ADD THIS
-      description: "CGST"
-    },
-    {
-      retailerId,
-      type: "credit",
-      account: "SGST Payable",
-      amount: totalSGST,
-      referenceId: invoiceId!,
-      referenceModel: "Sale", // ✅ ADD THIS
-      description: "SGST"
-    }
-  ],
-  { session }
-)
+      await LedgerEntry.insertMany(
+        [
+          {
+            retailerId,
+            type: "debit",
+            account: "Customer",
+            amount: totalAmount,
+            referenceId: invoiceId!,
+            referenceModel: "Sale",
+            description: "Sale"
+          },
+          {
+            retailerId,
+            type: "credit",
+            account: "Sales",
+            amount: totalAmount - (totalCGST + totalSGST),
+            referenceId: invoiceId!,
+            referenceModel: "Sale",
+            description: "Revenue"
+          },
+          {
+            retailerId,
+            type: "credit",
+            account: "CGST Payable",
+            amount: totalCGST,
+            referenceId: invoiceId!,
+            referenceModel: "Sale",
+            description: "CGST"
+          },
+          {
+            retailerId,
+            type: "credit",
+            account: "SGST Payable",
+            amount: totalSGST,
+            referenceId: invoiceId!,
+            referenceModel: "Sale",
+            description: "SGST"
+          }
+        ],
+        { session }
+      )
 
     })
 
-    // ✅ SAFE CHECK (CORRECT PLACE)
     if (!invoiceId) {
       return NextResponse.json(
         { error: "Invoice creation failed" },
@@ -229,34 +234,31 @@ export async function GET(req: NextRequest) {
   try {
     await dbConnect()
 
-    let user
+    const user = await getUserFromRequest(req)
 
-    try {
-      user = await getUserFromRequest(req)
-    } catch {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      )
+    // 🔐 AUTH
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (!user || user.role !== "retailer") {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      )
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const retailerId = new mongoose.Types.ObjectId(user.userId)
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    }
 
-    // 🔥 Fetch invoices
+    const retailerId = user.userId
+
     const invoices = await SalesInvoice.find({ retailerId })
       .sort({ createdAt: -1 })
       .limit(20)
       .select("totalAmount createdAt")
       .lean()
 
-    // 🔥 Total revenue
     const revenueData = await SalesInvoice.aggregate([
       { $match: { retailerId } },
       {

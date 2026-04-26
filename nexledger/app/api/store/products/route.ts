@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import Item from "@/models/item"
-import Customer from "@/models/customer"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
 export async function GET(req: NextRequest) {
@@ -10,6 +9,7 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
+    // 🔐 AUTH
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -21,29 +21,31 @@ export async function GET(req: NextRequest) {
 
     // 🧠 CUSTOMER FLOW
     if (user.role === "customer") {
-      const customer = await Customer.findOne(
-        { userId: user.userId },
-        { retailerId: 1 } // 🔥 optimized
-      ).lean()
-
-      if (!customer) {
+      if (!user.customerId || !user.retailerId) {
         return NextResponse.json(
-          { error: "Customer not found" },
-          { status: 404 }
+          { error: "Invalid token" },
+          { status: 401 }
         )
       }
 
-      retailerId = customer.retailerId
+      retailerId = user.retailerId
     }
 
     // 🧠 RETAILER FLOW
     else if (user.role === "retailer") {
+      if (!user.userId) {
+        return NextResponse.json(
+          { error: "Invalid token" },
+          { status: 401 }
+        )
+      }
+
       retailerId = user.userId
     }
 
     else {
       return NextResponse.json(
-        { error: "Invalid role" },
+        { error: "Forbidden" },
         { status: 403 }
       )
     }
@@ -71,7 +73,7 @@ export async function GET(req: NextRequest) {
     }
 
     const products = await Item.find(query)
-      .sort({ createdAt: -1 }) // 🔥 UX improvement
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .select("name sellingPrice stockQuantity category")
@@ -80,8 +82,10 @@ export async function GET(req: NextRequest) {
     const total = await Item.countDocuments(query)
 
     return NextResponse.json({
-      products,
-      totalPages: Math.ceil(total / limit)
+      data: {
+        products,
+        totalPages: Math.ceil(total / limit)
+      }
     })
 
   } catch (err: any) {

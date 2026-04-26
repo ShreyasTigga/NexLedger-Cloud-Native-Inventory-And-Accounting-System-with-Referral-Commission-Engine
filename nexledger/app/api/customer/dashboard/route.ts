@@ -11,10 +11,25 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    //  AUTH CHECK
-    if (!user || user.role !== "customer") {
+    // AUTH
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
+
+    //  ROLE CHECK
+    if (user.role !== "customer") {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      )
+    }
+
+    if (!user.customerId) {
+      return NextResponse.json(
+        { error: "Invalid token" },
         { status: 401 }
       )
     }

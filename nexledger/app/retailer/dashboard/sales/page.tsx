@@ -33,7 +33,7 @@ export default function SalesDashboard() {
           return
         }
 
-        setData(data)
+        setData(data.data || data)
 
       } catch (err: any) {
         setError(err.message)
@@ -61,7 +61,7 @@ export default function SalesDashboard() {
   // ================= DAILY REVENUE =================
   const dailyRevenueMap: Record<string, number> = {}
 
-  data.invoices.forEach((inv) => {
+  ;(data.invoices || []).forEach((inv) => {
     const date = new Date(inv.createdAt).toLocaleDateString()
 
     if (!dailyRevenueMap[date]) {
@@ -132,7 +132,7 @@ export default function SalesDashboard() {
           Recent Sales
         </h2>
 
-        {data.invoices.length === 0 ? (
+        {(data.invoices || []).length === 0 ? (
           <p className="text-sm text-gray-500">
             No sales found
           </p>
@@ -149,7 +149,7 @@ export default function SalesDashboard() {
 
             <tbody>
 
-              {data.invoices.map((inv) => (
+              {(data.invoices || []).map((inv) => (
 
                 <tr key={inv._id} className="border-b hover:bg-gray-50">
 

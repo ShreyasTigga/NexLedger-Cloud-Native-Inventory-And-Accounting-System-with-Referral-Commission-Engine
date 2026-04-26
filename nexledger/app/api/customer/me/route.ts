@@ -18,10 +18,25 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    // 🔐 AUTH CHECK
-    if (!user || user.role !== "customer") {
+    // 🔐 AUTH + ROLE
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
+
+    if (user.role !== "customer") {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      )
+    }
+
+    // 🔐 TOKEN SAFETY (IMPORTANT)
+    if (!user.customerId) {
+      return NextResponse.json(
+        { error: "Invalid token" },
         { status: 401 }
       )
     }
@@ -44,7 +59,7 @@ export async function GET(req: NextRequest) {
 
     // ================= CHILDREN =================
     const childrenRaw = await Customer.find({
-      referredBy: customer._id
+      referredBy: customerId
     })
       .populate("userId", "name email")
       .select("userId referralCode")
@@ -63,7 +78,7 @@ export async function GET(req: NextRequest) {
 
     // ================= EARNINGS =================
     const earnings = await ReferralEarning.find({
-      userId: customer._id
+      userId: customerId
     })
       .sort({ createdAt: -1 })
       .limit(20)

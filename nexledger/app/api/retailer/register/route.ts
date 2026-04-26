@@ -3,6 +3,7 @@ import dbConnect from "@/lib/mongodb"
 import User from "@/models/user"
 import Retailer from "@/models/retailer"
 import bcrypt from "bcryptjs"
+import mongoose from "mongoose"
 
 // 🔧 Generate referral code
 function generateRetailerCode(name: string) {
@@ -12,6 +13,8 @@ function generateRetailerCode(name: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await mongoose.startSession()
+
   try {
     await dbConnect()
 
@@ -84,7 +87,7 @@ export async function POST(req: NextRequest) {
     if (phone) query.push({ phone })
 
     if (query.length > 0) {
-      const existingUser = await User.findOne({ $or: query })
+      const existingUser = await User.findOne({ $or: query }).lean()
 
       if (existingUser) {
         return NextResponse.json(
@@ -103,22 +106,29 @@ export async function POST(req: NextRequest) {
 
     do {
       referralCode = generateRetailerCode(businessName)
-      exists = await User.findOne({ referralCode })
+      exists = await User.findOne({ referralCode }).lean()
     } while (exists)
 
-    // ================= CREATE USER =================
-    const user = await User.create({
-      name: ownerName, // 👈 important
+    let createdUser: any = null
+
+await session.withTransaction(async () => {
+  const user = await User.create(
+    [{
+      name: ownerName,
       email,
       phone,
       password: hashedPassword,
       role: "retailer",
       referralCode
-    })
+    }],
+    { session }
+  )
 
-    // ================= CREATE RETAILER =================
-    await Retailer.create({
-      userId: user._id,
+  createdUser = user[0]
+
+  await Retailer.create(
+    [{
+      userId: createdUser._id,
       businessName,
       ownerName,
       email,
@@ -132,13 +142,23 @@ export async function POST(req: NextRequest) {
         pincode: address.pincode,
         country: "India"
       }
-    })
+    }],
+    { session }
+  )
+})
+
+if (!createdUser) {
+  return NextResponse.json(
+    { error: "User creation failed" },
+    { status: 500 }
+  )
+}
 
     // ================= RESPONSE =================
     return NextResponse.json(
       {
         message: "Retailer registered successfully",
-        userId: user._id,
+        userId: createdUser?._id,
         referralCode
       },
       { status: 201 }
@@ -151,5 +171,8 @@ export async function POST(req: NextRequest) {
       { error: err.message || "Server error" },
       { status: 500 }
     )
+
+  } finally {
+    session.endSession()
   }
 }

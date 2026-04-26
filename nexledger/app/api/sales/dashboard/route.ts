@@ -9,9 +9,26 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    if (!user || user.role !== "retailer") {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
+
+    // 🔐 ROLE
+    if (user.role !== "retailer") {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      )
+    }
+
+    // 🔐 TOKEN SAFETY
+    if (!user.userId) {
+      return NextResponse.json(
+        { error: "Invalid token" },
         { status: 401 }
       )
     }
@@ -58,7 +75,7 @@ export async function GET(req: NextRequest) {
             }
           ],
 
-          // 🕒 Recent Invoices (OPTIMIZED)
+          // 🕒 Recent Invoices
           recent: [
             { $sort: { createdAt: -1 } },
             { $limit: 5 },
@@ -77,11 +94,13 @@ export async function GET(req: NextRequest) {
     const result = stats?.[0] || {}
 
     return NextResponse.json({
-      totalRevenue: result.revenue?.[0]?.total || 0,
-      totalSales: result.salesCount?.[0]?.count || 0,
-      totalCGST: result.gst?.[0]?.totalCGST || 0,
-      totalSGST: result.gst?.[0]?.totalSGST || 0,
-      recentInvoices: result.recent || []
+      data: {
+        totalRevenue: result.revenue?.[0]?.total || 0,
+        totalSales: result.salesCount?.[0]?.count || 0,
+        totalCGST: result.gst?.[0]?.totalCGST || 0,
+        totalSGST: result.gst?.[0]?.totalSGST || 0,
+        recentInvoices: result.recent || []
+      }
     })
 
   } catch (err: any) {

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import SalesInvoice from "@/models/salesInvoice"
-import Customer from "@/models/customer"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
 export async function GET(req: NextRequest) {
@@ -10,35 +9,41 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    // 🔐 AUTH CHECK
-    if (!user || user.role !== "customer") {
+    // 🔐 AUTH
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       )
     }
 
-    // 🔍 GET CUSTOMER
-    const customer = await Customer.findOne({
-      userId: user.userId
-    }).lean()
-
-    if (!customer) {
+    // 🔐 ROLE
+    if (user.role !== "customer") {
       return NextResponse.json(
-        { error: "Customer not found" },
-        { status: 404 }
+        { error: "Forbidden" },
+        { status: 403 }
       )
     }
 
-    // 📦 FETCH ORDERS
+    // 🔐 TOKEN SAFETY
+    if (!user.customerId) {
+      return NextResponse.json(
+        { error: "Invalid token" },
+        { status: 401 }
+      )
+    }
+
+    const customerId = user.customerId
+
+    // 📦 FETCH ORDERS (no extra DB query)
     const orders = await SalesInvoice.find({
-      customerId: customer._id
+      customerId
     })
       .sort({ createdAt: -1 })
       .select("_id totalAmount status createdAt")
       .lean()
 
-    // ✅ FORMAT RESPONSE (clean for frontend)
+    // ✅ FORMAT RESPONSE
     const formatted = orders.map(order => ({
       id: order._id,
       totalAmount: order.totalAmount,
@@ -46,7 +51,9 @@ export async function GET(req: NextRequest) {
       date: order.createdAt
     }))
 
-    return NextResponse.json(formatted)
+    return NextResponse.json({
+      orders: formatted
+    })
 
   } catch (err: any) {
     console.error("CUSTOMER ORDERS ERROR:", err)

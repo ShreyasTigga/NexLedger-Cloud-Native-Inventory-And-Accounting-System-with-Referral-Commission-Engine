@@ -24,13 +24,7 @@ export default function LedgerPage() {
 
     if (!data) return
 
-    if (Array.isArray(data)) {
-      setEntries(data)
-    } else if (Array.isArray(data.entries)) {
-      setEntries(data.entries)
-    } else {
-      setEntries([])
-    }
+    setEntries(Array.isArray(data) ? data : [])
   }
 
   fetchLedger()

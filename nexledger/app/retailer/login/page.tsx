@@ -12,34 +12,35 @@ export default function RetailerLoginPage() {
   const [error, setError] = useState("")
 
   async function handleLogin() {
-  setError("")
+    setError("")
 
-  try {
-    const data = await apiFetch("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({
-        identifier,
-        password
+    try {
+      const data = await apiFetch("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          identifier,
+          password
+        })
       })
-    })
 
-    if (!data) return
+      if (!data) return
 
-    // 🔥 STORE TOKENS
-    localStorage.setItem("accessToken", data.accessToken)
-    localStorage.setItem("refreshToken", data.refreshToken)
+      // ✅ ROLE CHECK FIRST (FIXED)
+      if (data.role !== "retailer") {
+        setError("Not a retailer account")
+        return
+      }
 
-    if (data.role !== "retailer") {
-      setError("Not a retailer account")
-      return
+      // 🔥 STORE TOKENS (FIXED POSITION)
+      localStorage.setItem("accessToken", data.accessToken)
+      localStorage.setItem("refreshToken", data.refreshToken)
+
+      router.push("/retailer/dashboard")
+
+    } catch (err: any) {
+      setError(err.message || "Login failed")
     }
-
-    router.push("/retailer/dashboard")
-
-  } catch (err: any) {
-    setError(err.message || "Login failed")
   }
-}
 
   return (
     <div className="max-w-md mx-auto p-6 space-y-4">

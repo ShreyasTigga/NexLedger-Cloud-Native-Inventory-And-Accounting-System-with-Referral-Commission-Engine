@@ -28,7 +28,7 @@ export default function SupplierPage() {
 
     if (!data) return
 
-    setSuppliers(data.suppliers || [])
+    setSuppliers(Array.isArray(data?.suppliers) ? data.suppliers : [])
   }
 
   useEffect(() => {
