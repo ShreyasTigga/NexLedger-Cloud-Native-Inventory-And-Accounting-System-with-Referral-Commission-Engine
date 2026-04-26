@@ -10,7 +10,8 @@ import {
   ShoppingCart,
   BookOpen,
   LogOut,
-  Settings
+  Settings,
+  Users
 } from "lucide-react"
 
 export default function DashboardLayout({
@@ -29,6 +30,8 @@ export default function DashboardLayout({
     { name: "Purchase", href: `${BASE}/purchase`, icon: ShoppingCart },
     { name: "Sales", href: `${BASE}/sales`, icon: ShoppingCart },
     { name: "Ledger", href: `${BASE}/ledger`, icon: BookOpen },
+    { name: "Add Customer", href: `${BASE}/customers/create`, icon: Users},
+    { name: "Customers", href: `${BASE}/customers`, icon: Users },
     { name: "Referral Config", href: `${BASE}/referral`, icon: Settings }
   ]
 

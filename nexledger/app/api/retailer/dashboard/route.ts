@@ -6,6 +6,7 @@ import SalesInvoice from "@/models/salesInvoice"
 import Item from "@/models/item"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 import PurchaseInvoice from "@/models/purchaseInvoice"
+import Customer from "@/models/customer"
 
 export async function GET(req: NextRequest) {
   try {
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const retailerId = user.userId
+    const retailerId = new mongoose.Types.ObjectId(user.userId)
 
     // ================= DATA =================
 
@@ -123,6 +124,13 @@ export async function GET(req: NextRequest) {
 
     const totalCOGS = cogsAgg[0]?.totalCOGS || 0
 
+    // ================= Total Customer =================
+
+    const totalCustomers = await Customer.countDocuments({
+      retailerId
+    })
+
+
     return NextResponse.json({
       success: true,
       data: {
@@ -132,7 +140,8 @@ export async function GET(req: NextRequest) {
         totalCOGS,
         lowStockItems,
         recentSales,
-        topProducts
+        topProducts,
+        totalCustomers
       }
     })
 

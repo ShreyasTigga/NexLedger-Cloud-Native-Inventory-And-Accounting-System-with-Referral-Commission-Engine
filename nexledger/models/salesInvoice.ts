@@ -25,6 +25,8 @@ export interface SalesInvoiceDocument extends Document {
   items: SalesItem[]
 
   totalAmount: number
+  profit: number
+  
   status: "pending" | "paid" | "shipped" | "delivered"
 
   createdAt: Date
@@ -117,6 +119,11 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
           type: Number,
           required: true,
           min: 0
+        },
+
+        profit: {
+          type: Number,
+          default: 0
         },
 
         total: {

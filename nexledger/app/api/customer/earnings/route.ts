@@ -35,12 +35,15 @@ export async function GET(req: NextRequest) {
 
     const customerId = user.customerId
 
-    // ✅ FIXED: use customerId directly
     const earnings = await ReferralEarning.find({
-      userId: customerId
-    }).sort({ createdAt: -1 })
+      customerId
+    })
+      .populate("sourceCustomerId", "name phone")
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .select("amount level createdAt sourceCustomerId")
+      .lean()
 
-    // ✅ FIXED: consistent response
     return NextResponse.json({
       earnings
     })

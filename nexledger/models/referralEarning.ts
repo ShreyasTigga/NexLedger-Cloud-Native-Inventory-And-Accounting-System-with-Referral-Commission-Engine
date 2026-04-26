@@ -2,15 +2,15 @@ import mongoose, { Schema, Document, models, model } from "mongoose"
 
 export interface ReferralEarningDocument extends Document {
   retailerId: mongoose.Types.ObjectId
-  userId: mongoose.Types.ObjectId
-  fromUserId: mongoose.Types.ObjectId
+  customerId: mongoose.Types.ObjectId
+  sourceCustomerId: mongoose.Types.ObjectId
   level: number
   amount: number
   saleId: mongoose.Types.ObjectId
   createdAt: Date
 }
 
-const ReferralEarningSchema = new Schema<ReferralEarningDocument>(
+const ReferralEarningSchema = new Schema(
   {
     retailerId: {
       type: Schema.Types.ObjectId,
@@ -19,13 +19,13 @@ const ReferralEarningSchema = new Schema<ReferralEarningDocument>(
       index: true
     },
 
-    userId: {
+    customerId: {
       type: Schema.Types.ObjectId,
       ref: "Customer",
       required: true
     },
 
-    fromUserId: {
+    sourceCustomerId: {
       type: Schema.Types.ObjectId,
       ref: "Customer",
       required: true
@@ -50,9 +50,11 @@ const ReferralEarningSchema = new Schema<ReferralEarningDocument>(
   { timestamps: { createdAt: true, updatedAt: false } }
 )
 
-// Performance indexes
-ReferralEarningSchema.index({ userId: 1, createdAt: -1 })
-ReferralEarningSchema.index({ fromUserId: 1 })
+// INDEXES
+ReferralEarningSchema.index({ retailerId: 1, customerId: 1 })
+ReferralEarningSchema.index({ retailerId: 1, level: 1 })
+ReferralEarningSchema.index({ customerId: 1, createdAt: -1 })
+ReferralEarningSchema.index({ sourceCustomerId: 1 })
 ReferralEarningSchema.index({ saleId: 1 })
 
 const ReferralEarning =

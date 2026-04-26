@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     const customerId = user.customerId
 
-    // 📦 FETCH CUSTOMER (only needed for wallet)
+    // 📦 FETCH CUSTOMER
     const customer = await Customer.findById(customerId).lean()
 
     if (!customer) {
@@ -48,14 +48,17 @@ export async function GET(req: NextRequest) {
 
     // 💰 EARNINGS
     const recentEarnings = await ReferralEarning.find({
-      userId: customerId
+      customerId
     })
+      .populate("sourceCustomerId", "name phone")
       .sort({ createdAt: -1 })
       .limit(5)
+      .select("amount level createdAt sourceCustomerId")
       .lean()
 
     return NextResponse.json({
       walletBalance: customer.walletBalance,
+      totalEarnings: customer.totalEarnings, // ✅ added
       recentEarnings
     })
 

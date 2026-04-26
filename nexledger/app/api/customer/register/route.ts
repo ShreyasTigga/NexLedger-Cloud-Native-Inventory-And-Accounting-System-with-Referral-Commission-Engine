@@ -4,6 +4,8 @@ import User from "@/models/user"
 import Customer from "@/models/customer"
 import bcrypt from "bcryptjs"
 import mongoose, { ClientSession } from "mongoose"
+import LedgerEntry from "@/models/ledgerEntry"
+import { getUserFromRequest } from "@/lib/getUserFromRequest" // ✅ ADDED
 
 // 🔧 Generate referral code
 function generateReferralCode(name: string) {
@@ -27,9 +29,11 @@ export async function POST(req: NextRequest) {
       email,
       phone,
       password,
-      referralCode,
-      retailerId: inputRetailerId
+      referralCode
     } = body
+
+    // ✅ GET USER FROM TOKEN
+    const userFromToken = await getUserFromRequest(req)
 
     // ================= NORMALIZE =================
     name = name?.trim()
@@ -74,14 +78,19 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (!referralCode && !inputRetailerId) {
+    const retailerUserId = userFromToken?.userId
+
+    // ✅ FIXED VALIDATION
+    if (!referralCode && !retailerUserId) {
       return NextResponse.json(
-        { error: "Referral code or retailer required" },
-        { status: 400 }
+        { error: "Unauthorized" },
+        { status: 401 }
       )
     }
 
     // ================= TRANSACTION =================
+
+    let createdCustomer: any = null
 
     await session.withTransaction(async () => {
 
@@ -93,11 +102,8 @@ export async function POST(req: NextRequest) {
       if (query.length > 0) {
         const existingUser = await User.findOne({ $or: query }).session(session)
         if (existingUser) {
-  return NextResponse.json(
-    { error: "User already exists" },
-    { status: 400 }
-  )
-}
+          throw new Error("User already exists")
+        }
       }
 
       // ================= HASH PASSWORD =================
@@ -105,19 +111,17 @@ export async function POST(req: NextRequest) {
 
       // ================= CREATE USER =================
       const userArr = await User.create(
-      [
-        {
+        [{
           name,
           email,
           phone,
           password: hashedPassword,
           role: "customer"
-        }
-      ],
-      { session }
+        }],
+        { session }
       )
 
-const user = userArr[0]
+      const user = userArr[0]
 
       let retailerId: mongoose.Types.ObjectId
       let referredById: mongoose.Types.ObjectId | undefined
@@ -125,64 +129,50 @@ const user = userArr[0]
       // ================= REFERRAL FLOW =================
       if (referralCode) {
 
-        // 🔍 Try customer first
         let parentCustomer = await Customer.findOne({ referralCode }).session(session)
 
         if (parentCustomer) {
           retailerId = parentCustomer.retailerId
 
-          // 🔁 re-check within retailer scope (multi-tenant safety)
           parentCustomer = await Customer.findOne({
             referralCode,
             retailerId
           }).session(session)
 
           if (!parentCustomer) {
-            return NextResponse.json(
-  { error: "Invalid referral code" },
-  { status: 400 }
-)
+            throw new Error("Invalid referral code")
           }
 
           referredById = parentCustomer._id
-        }
-
-        else {
-          // 🔍 Try retailer
+        } else {
           const parentRetailer = await User.findOne({
             referralCode,
             role: "retailer"
           }).session(session)
 
           if (!parentRetailer) {
-            return NextResponse.json(
-  { error: "Invalid referral code" },
-  { status: 400 }
-)
+            throw new Error("Invalid referral code")
           }
 
           retailerId = parentRetailer._id
         }
-      }
 
-      // ================= DIRECT JOIN =================
-      else {
+      } else {
+
+        // ✅ FIXED RETAILER FLOW (FROM TOKEN)
         const retailer = await User.findOne({
-          _id: inputRetailerId,
+          _id: new mongoose.Types.ObjectId(retailerUserId),
           role: "retailer"
         }).session(session)
 
         if (!retailer) {
-          return NextResponse.json(
-  { error: "Invalid retailer" },
-  { status: 400 }
-)
+          throw new Error("Invalid retailer")
         }
 
         retailerId = retailer._id
       }
 
-      // ================= GENERATE UNIQUE REFERRAL CODE =================
+      // ================= GENERATE REFERRAL =================
       let newReferralCode = ""
       let exists = null
       let attempts = 0
@@ -198,26 +188,38 @@ const user = userArr[0]
       } while (exists && attempts < 5)
 
       if (attempts === 5) {
-        return NextResponse.json(
-  { error: "Failed to generate referral code" },
-  { status: 400 }
-)
+        throw new Error("Failed to generate referral code")
       }
 
       // ================= CREATE CUSTOMER =================
-      await Customer.create(
-        [
-          {
-            userId: user._id,
-            retailerId,
-            name,
-            phone,
-            email,
-            referralCode: newReferralCode,
-            ...(referredById && { referredBy: referredById }),
-            walletBalance: 0
-          }
-        ],
+      const customerArr = await Customer.create(
+        [{
+          userId: user._id,
+          retailerId,
+          name,
+          phone,
+          email,
+          referralCode: newReferralCode,
+          ...(referredById && { referredBy: referredById }),
+          walletBalance: 0
+        }],
+        { session }
+      )
+
+      const customer = customerArr[0]
+      createdCustomer = customer
+
+      // ================= LEDGER ENTRY =================
+      await LedgerEntry.create(
+        [{
+          retailerId,
+          account: "Customer Registration",
+          type: "credit",
+          amount: 0,
+          description: `New customer registered: ${name}`,
+          referenceId: customer._id,
+          referenceModel: "Customer"
+        }],
         { session }
       )
 

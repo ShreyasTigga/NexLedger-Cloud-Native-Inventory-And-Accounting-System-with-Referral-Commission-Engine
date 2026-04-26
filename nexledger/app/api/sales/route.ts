@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
       let totalAmount = 0
       let totalCGST = 0
       let totalSGST = 0
+      let totalProfit = 0
 
       for (const item of items) {
 
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
           throw new Error(`Not enough stock for ${product.name}`)
         }
 
-        // ✅ STOCK UPDATE
+        // STOCK UPDATE
         product.stockQuantity -= item.quantity
         await product.save({ session })
 
@@ -106,6 +107,12 @@ export async function POST(req: NextRequest) {
         totalCGST += cgstAmount
         totalSGST += sgstAmount
 
+        const cost = product.costPrice * item.quantity
+        const revenue = product.sellingPrice * item.quantity
+
+        const profit = revenue - cost
+        totalProfit += profit
+
         processedItems.push({
           itemId: product._id,
           name: product.name,
@@ -123,18 +130,21 @@ export async function POST(req: NextRequest) {
       }
 
       // ================= CREATE INVOICE =================
-      const [invoice] = await SalesInvoice.create(
-        [
-          {
-            retailerId,
-            customerId,
-            referredBy: customer.referredBy,
-            items: processedItems,
-            totalAmount
-          }
-        ],
-        { session }
-      )
+      const created = await SalesInvoice.create(
+  [
+    {
+      retailerId,
+      customerId,
+      referredBy: customer.referredBy,
+      items: processedItems,
+      totalAmount,
+      profit: totalProfit
+    }
+  ],
+  { session }
+)
+
+const invoice = created[0] as any
 
       invoiceId = invoice._id
 
@@ -149,15 +159,6 @@ export async function POST(req: NextRequest) {
         })),
         { session }
       )
-
-      // ================= REFERRAL =================
-      await processReferralCommission({
-        saleId: invoiceId!,
-        customerId,
-        totalAmount,
-        retailerId, // ✅ FIXED
-        session: session ?? undefined
-      })
 
       // ================= LEDGER =================
       await LedgerEntry.insertMany(
@@ -201,6 +202,17 @@ export async function POST(req: NextRequest) {
         ],
         { session }
       )
+
+      // ================= REFERRAL =================
+      if (totalProfit > 0) {
+        await processReferralCommission({
+          saleId: invoiceId!,
+          customerId,
+          profitAmount: totalProfit,
+          retailerId,
+          session: session ?? undefined
+        })
+      }
 
     })
 
@@ -256,7 +268,7 @@ export async function GET(req: NextRequest) {
     const invoices = await SalesInvoice.find({ retailerId })
       .sort({ createdAt: -1 })
       .limit(20)
-      .select("totalAmount createdAt")
+      .select("totalAmount profit createdAt")
       .lean()
 
     const revenueData = await SalesInvoice.aggregate([
@@ -264,17 +276,20 @@ export async function GET(req: NextRequest) {
       {
         $group: {
           _id: null,
-          totalRevenue: { $sum: "$totalAmount" }
+          totalRevenue: { $sum: "$totalAmount" },
+          totalProfit: { $sum: "$profit" }
         }
       }
     ])
 
     const totalRevenue = revenueData[0]?.totalRevenue || 0
+    const totalProfit = revenueData[0]?.totalProfit || 0
     const totalSales = invoices.length
 
     return NextResponse.json({
       totalSales,
       totalRevenue,
+      totalProfit,
       invoices
     })
 

@@ -6,7 +6,7 @@ export interface LedgerEntryDocument extends Document {
   type: "debit" | "credit"
   amount: number
   referenceId?: mongoose.Types.ObjectId
-  referenceModel?: "Purchase" | "Sale"
+  referenceModel?: "Purchase" | "Sale" | "Customer" | "Referral"
   description?: string
   createdAt: Date
 }
@@ -36,7 +36,7 @@ const LedgerEntrySchema = new Schema<LedgerEntryDocument>(
 
     referenceModel: {
       type: String,
-      enum: ["Purchase", "Sale"]
+      enum: ["Purchase", "Sale", "Customer", "Referral"]
     },
 
     description: String

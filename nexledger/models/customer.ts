@@ -13,6 +13,7 @@ export interface CustomerDocument extends Document {
 
   level: number
   walletBalance: number
+  totalEarnings: number
 
   createdAt: Date
   updatedAt: Date
@@ -72,13 +73,18 @@ const CustomerSchema = new Schema<CustomerDocument>(
       type: Number,
       default: 0,
       min: 0
+    },
+
+    totalEarnings: 
+    { type: Number,
+       default: 0 
     }
   },
   { timestamps: true }
 )
 
 CustomerSchema.index({ retailerId: 1, level: 1 })
-
+CustomerSchema.index({ retailerId: 1, walletBalance: -1 })
 CustomerSchema.index(
   { retailerId: 1, referralCode: 1 },
   { unique: true }

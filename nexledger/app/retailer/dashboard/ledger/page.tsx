@@ -10,7 +10,7 @@ interface LedgerEntry {
   amount: number
   description?: string
   createdAt: string
-  referenceModel?: string
+  referenceModel?: "Sale" | "Purchase" | "Customer" | "Referral"
 }
 
 export default function LedgerPage() {
@@ -19,37 +19,46 @@ export default function LedgerPage() {
   const [filter, setFilter] = useState("all")
 
   useEffect(() => {
-  const fetchLedger = async () => {
-    const data = await apiFetch("/api/ledger")
+    const fetchLedger = async () => {
+      const data = await apiFetch("/api/ledger")
 
-    if (!data) return
+      if (!data) return
 
-    setEntries(Array.isArray(data) ? data : [])
-  }
+      setEntries(data.entries || [])
+    }
 
-  fetchLedger()
-}, [])
+    fetchLedger()
+  }, [])
 
   const safeEntries = Array.isArray(entries) ? entries : []
 
   // ================= FILTER =================
-const filteredEntries = safeEntries.filter(e => {
-  if (filter === "all") return true
+  const filteredEntries = safeEntries.filter(e => {
+    if (filter === "all") return true
+    return e.referenceModel?.toLowerCase() === filter
+  })
 
-  // fallback for old entries
-  if (!e.referenceModel) {
-    if (filter === "purchase") return e.account === "Purchase"
-    if (filter === "sale") return e.account === "Sales"
+  // ================= COLORS =================
+  const getTagStyle = (type?: string) => {
+    switch (type) {
+      case "Sale":
+        return "bg-green-100 text-green-600"
+      case "Purchase":
+        return "bg-red-100 text-red-600"
+      case "Customer":
+        return "bg-blue-100 text-blue-600"
+      case "Referral":
+        return "bg-purple-100 text-purple-600"
+      default:
+        return "bg-gray-100 text-gray-600"
+    }
   }
 
-  return e.referenceModel?.toLowerCase() === filter
-})
-
   const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR"
-  }).format(amount)
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR"
+    }).format(amount)
 
   // ================= RUNNING BALANCE =================
   let balance = 0
@@ -72,9 +81,9 @@ const filteredEntries = safeEntries.filter(e => {
 
       <h1 className="text-2xl font-semibold">Ledger</h1>
 
-      {/* 🔥 FILTER */}
-      <div className="flex gap-3">
-        {["all", "purchase", "sale"].map(f => (
+      {/* 🔥 FILTER TABS */}
+      <div className="flex gap-3 flex-wrap">
+        {["all", "sale", "purchase", "customer", "referral"].map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -97,6 +106,7 @@ const filteredEntries = safeEntries.filter(e => {
           <thead>
             <tr className="border-b text-gray-500 text-xs uppercase">
               <th className="p-3 text-left">Date</th>
+              <th className="p-3 text-left">Type</th>
               <th className="p-3 text-left">Account</th>
               <th className="p-3 text-left">Description</th>
               <th className="p-3 text-right">Debit</th>
@@ -108,7 +118,7 @@ const filteredEntries = safeEntries.filter(e => {
           <tbody>
             {processed.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-6 text-center text-gray-500">
+                <td colSpan={7} className="p-6 text-center text-gray-500">
                   No entries found
                 </td>
               </tr>
@@ -118,6 +128,13 @@ const filteredEntries = safeEntries.filter(e => {
 
                   <td className="p-3">
                     {new Date(entry.createdAt).toLocaleDateString()}
+                  </td>
+
+                  {/* 🔥 TYPE BADGE */}
+                  <td className="p-3">
+                    <span className={`px-2 py-1 rounded text-xs ${getTagStyle(entry.referenceModel)}`}>
+                      {entry.referenceModel || "Other"}
+                    </span>
                   </td>
 
                   <td className="p-3 font-medium">
@@ -146,6 +163,7 @@ const filteredEntries = safeEntries.filter(e => {
                   <td className="p-3 text-right font-semibold">
                     {formatCurrency(entry.balance)}
                   </td>
+
                 </tr>
               ))
             )}
