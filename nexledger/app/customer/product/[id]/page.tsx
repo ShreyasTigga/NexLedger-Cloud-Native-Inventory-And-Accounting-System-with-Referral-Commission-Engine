@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { useCart } from "@/components/CartProvider"
+import { apiFetch } from "@/lib/apiFetch" // ✅ ADD
 
 interface Product {
   _id: string
@@ -16,18 +17,47 @@ interface Product {
 export default function ProductPage() {
   const params = useParams()
   const [product, setProduct] = useState<Product | null>(null)
+  const [loading, setLoading] = useState(true)
   const { addToCart } = useCart()
 
   useEffect(() => {
-    fetch(`/api/store/products/${params.id}`)
-      .then(res => res.json())
-      .then(data => setProduct(data))
+
+    const fetchProduct = async () => {
+      try {
+        const id = Array.isArray(params.id) ? params.id[0] : params.id
+
+        if (!id) return
+
+        // 🔥 USE apiFetch
+        const data = await apiFetch(`/api/store/products/${id}`)
+
+        if (!data) return
+
+        setProduct(data)
+
+      } catch (err: any) {
+        console.error(err.message || "Failed to load product")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchProduct()
+
   }, [params.id])
 
-  if (!product) {
+  if (loading) {
     return (
       <div className="p-6 text-center">
         Loading product...
+      </div>
+    )
+  }
+
+  if (!product) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        Product not found
       </div>
     )
   }
@@ -74,18 +104,24 @@ export default function ProductPage() {
           )}
 
           <button
-  onClick={() =>
-    addToCart({
-      productId: product._id,
-      name: product.name,
-      price: product.sellingPrice,
-      quantity: 1
-    })
-  }
-  className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
->
-  Add to Cart
-</button>
+            onClick={() => {
+              if (product.stockQuantity <= 0) {
+                alert("Out of stock")
+                return
+              }
+
+              addToCart({
+                productId: product._id,
+                name: product.name,
+                price: product.sellingPrice,
+                quantity: 1
+              })
+            }}
+            disabled={product.stockQuantity <= 0}
+            className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+          >
+            Add to Cart
+          </button>
 
         </div>
 

@@ -1,39 +1,52 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { apiFetch } from "@/lib/apiFetch" // ✅ ADD
 
 export default function WalletPage() {
 
   const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-  fetch("/api/customer/wallet", { credentials: "include" })
-    .then(res => {
-      if (!res.ok) {
-        throw new Error("Unauthorized")
+
+    const fetchWallet = async () => {
+      try {
+        const res = await apiFetch("/api/customer/wallet")
+
+        if (!res) return
+
+        setData({
+          walletBalance: res.walletBalance || 0,
+          recentEarnings: Array.isArray(res.recentEarnings)
+            ? res.recentEarnings
+            : []
+        })
+
+      } catch (err) {
+        console.error(err)
+
+        // ✅ Prevent crash
+        setData({
+          walletBalance: 0,
+          recentEarnings: []
+        })
+      } finally {
+        setLoading(false)
       }
-      return res.json()
-    })
-    .then(data => {
-      setData({
-        walletBalance: data.walletBalance || 0,
-        recentEarnings: Array.isArray(data.recentEarnings)
-          ? data.recentEarnings
-          : []
-      })
-    })
-    .catch(err => {
-      console.error(err)
+    }
 
-      // ✅ Prevent crash
-      setData({
-        walletBalance: 0,
-        recentEarnings: []
-      })
-    })
-}, [])
+    fetchWallet()
 
-  if (!data) return <p className="p-6">Loading...</p>
+  }, [])
+
+  if (loading) {
+    return <p className="p-6 text-center text-gray-500">Loading wallet...</p>
+  }
+
+  if (!data) {
+    return <p className="p-6 text-center text-gray-500">No data available</p>
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -54,7 +67,7 @@ export default function WalletPage() {
           Recent Earnings
         </h2>
 
-        {data.recentEarnings?.length === 0 ? (
+        {data.recentEarnings.length === 0 ? (
           <p>No earnings yet</p>
         ) : (
           data.recentEarnings.map((e: any, i: number) => (
@@ -64,7 +77,7 @@ export default function WalletPage() {
                 Level {e.level} Commission
               </p>
 
-              <p className="text-green-600">
+              <p className="text-green-600 font-semibold">
                 +₹{e.amount}
               </p>
 

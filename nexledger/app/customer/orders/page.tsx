@@ -3,6 +3,7 @@
 import { useCart } from "@/components/CartProvider"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { apiFetch } from "@/lib/apiFetch" // ✅ ADD
 
 export default function CartPage() {
 
@@ -29,10 +30,14 @@ export default function CartPage() {
     setLoading(true)
 
     try {
-      // ✅ STOCK VALIDATION
+      // ✅ STOCK VALIDATION (FIXED)
       for (const item of cart) {
-        const res = await fetch(`/api/store/products/${item.productId}`)
-        const product = await res.json()
+        const product = await apiFetch(`/api/store/products/${item.productId}`)
+
+        if (!product) {
+          setLoading(false)
+          return
+        }
 
         if (product.stockQuantity < item.quantity) {
           alert(
@@ -43,13 +48,9 @@ export default function CartPage() {
         }
       }
 
-      // ✅ CORRECT PAYLOAD
-      const res = await fetch("/api/sales", {
+      // ✅ CHECKOUT (FIXED)
+      const data = await apiFetch("/api/sales", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        credentials: "include", // 🔥 IMPORTANT
         body: JSON.stringify({
           items: cart.map(item => ({
             productId: item.productId,
@@ -58,10 +59,7 @@ export default function CartPage() {
         })
       })
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        alert(data.error)
+      if (!data) {
         setLoading(false)
         return
       }
@@ -72,9 +70,9 @@ export default function CartPage() {
       // ✅ REDIRECT TO INVOICE PAGE
       router.push(`/customer/order/${data.invoiceId}`)
 
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      alert("Checkout failed")
+      alert(err.message || "Checkout failed")
     } finally {
       setLoading(false)
     }
@@ -120,8 +118,9 @@ export default function CartPage() {
               <button
                 onClick={async () => {
 
-                  const res = await fetch(`/api/store/products/${item.productId}`)
-                  const product = await res.json()
+                  const product = await apiFetch(`/api/store/products/${item.productId}`)
+
+                  if (!product) return
 
                   if (item.quantity >= product.stockQuantity) {
                     alert("Max stock reached")

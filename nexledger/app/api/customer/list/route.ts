@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const user = await getUserFromRequest(req)
 
     // 🔐 AUTH
-    if (!user || user.role !== "retailer") {
+    if (!user || user.role !== "retailer" || !user.userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -21,7 +21,13 @@ export async function GET(req: NextRequest) {
       retailerId: user.userId
     })
       .populate("userId", "name email phone")
-      .populate("referredBy", "name referralCode")
+      .populate({
+        path: "referredBy",
+        populate: {
+          path: "userId",
+          select: "name"
+        }
+      })
       .sort({ createdAt: -1 })
       .lean()
 
@@ -31,11 +37,13 @@ export async function GET(req: NextRequest) {
       email: c.userId?.email,
       phone: c.userId?.phone,
       referralCode: c.referralCode,
-      referredBy: c.referredBy?.name || null,
+      referredBy: c.referredBy?.userId?.name || null,
       type: c.referredBy ? "referral" : "manual"
     }))
 
-    return NextResponse.json(formatted)
+    return NextResponse.json({
+      customers: formatted
+    })
 
   } catch (err: any) {
     return NextResponse.json(

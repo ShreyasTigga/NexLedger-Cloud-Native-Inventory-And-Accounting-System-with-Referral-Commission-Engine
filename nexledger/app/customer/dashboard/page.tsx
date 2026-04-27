@@ -1,27 +1,30 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { apiFetch } from "@/lib/apiFetch" // ✅ ADD
 
 export default function CustomerDashboard() {
 
   const [stats, setStats] = useState<any>(null)
 
   useEffect(() => {
-    fetch("/api/customer/dashboard", {
-      credentials: "include"
-    })
-      .then(async (res) => {
-        const data = await res.json()
 
-        if (!res.ok) {
-          throw new Error(data.error || "Failed to load")
-        }
+    const fetchDashboard = async () => {
+      try {
+        // 🔥 USE apiFetch (Bearer token handled automatically)
+        const data = await apiFetch("/api/customer/dashboard")
+
+        if (!data) return
 
         setStats(data)
-      })
-      .catch((err) => {
-        console.error(err)
-      })
+
+      } catch (err: any) {
+        console.error(err.message || "Failed to load")
+      }
+    }
+
+    fetchDashboard()
+
   }, [])
 
   if (!stats) {

@@ -23,7 +23,7 @@ export default function RegisterPage() {
 
     if (ref) {
       setReferralCode(ref.toUpperCase())
-      setLockedReferral(true) // 🔒 lock it
+      setLockedReferral(true)
     }
   }, [])
 
@@ -72,10 +72,9 @@ export default function RegisterPage() {
         headers: {
           "Content-Type": "application/json"
         },
-        credentials: "include",
         body: JSON.stringify({
           name: name.trim(),
-          email: email.trim(),
+          email: email.trim() || undefined, // ✅ FIX
           phone,
           password,
           referralCode
@@ -113,7 +112,6 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-3">
 
-          {/* NAME */}
           <input
             type="text"
             placeholder="Full Name"
@@ -122,7 +120,6 @@ export default function RegisterPage() {
             onChange={(e) => setName(e.target.value)}
           />
 
-          {/* PHONE (REQUIRED) */}
           <input
             type="text"
             placeholder="Phone (required)"
@@ -131,7 +128,6 @@ export default function RegisterPage() {
             onChange={(e) => setPhone(e.target.value)}
           />
 
-          {/* EMAIL */}
           <input
             type="email"
             placeholder="Email (optional)"
@@ -140,7 +136,6 @@ export default function RegisterPage() {
             onChange={(e) => setEmail(e.target.value)}
           />
 
-          {/* PASSWORD */}
           <input
             type="password"
             placeholder="Password"
@@ -149,17 +144,19 @@ export default function RegisterPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          {/* REFERRAL */}
           <input
             type="text"
             placeholder="Referral Code"
             className="w-full border p-2 rounded uppercase bg-gray-50"
             value={referralCode}
-            disabled={lockedReferral} // 🔒 important
-            onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+            disabled={lockedReferral}
+            onChange={(e) =>
+              setReferralCode(
+                e.target.value.replace(/\s/g, "").toUpperCase() // ✅ FIX
+              )
+            }
           />
 
-          {/* BUTTON */}
           <button
             type="submit"
             disabled={loading}

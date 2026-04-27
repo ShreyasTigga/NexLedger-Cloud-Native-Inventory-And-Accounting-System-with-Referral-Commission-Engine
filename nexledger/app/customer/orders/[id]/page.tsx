@@ -2,19 +2,45 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
+import { apiFetch } from "@/lib/apiFetch" // ✅ ADD
 
 export default function OrderPage() {
   const params = useParams()
   const [invoice, setInvoice] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/sales/${params.id}`)
-      .then(res => res.json())
-      .then(data => setInvoice(data))
+
+    const fetchInvoice = async () => {
+      try {
+        const id = Array.isArray(params.id) ? params.id[0] : params.id
+
+        if (!id) return
+
+        // 🔥 USE apiFetch
+        const data = await apiFetch(`/api/sales/${id}`)
+
+        if (!data) return
+
+        setInvoice(data)
+
+      } catch (err: any) {
+        console.error(err.message || "Failed to load invoice")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchInvoice()
+
   }, [params.id])
 
-  if (!invoice) {
+  if (loading) {
     return <div className="p-6 text-center">Loading...</div>
+  }
+
+  if (!invoice) {
+    return <div className="p-6 text-center text-gray-500">No invoice found</div>
   }
 
   const totalGST = invoice.items.reduce(

@@ -2,6 +2,7 @@
 
 import { useCart } from "@/components/CartProvider"
 import { useRouter } from "next/navigation"
+import { apiFetch } from "@/lib/apiFetch" // ✅ ADD THIS
 
 export default function CartPage() {
 
@@ -23,12 +24,9 @@ export default function CartPage() {
     if (cart.length === 0) return
 
     try {
-      const res = await fetch("/api/sales", {
+      // 🔥 USE apiFetch (Bearer token handled automatically)
+      const data = await apiFetch("/api/sales", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        credentials: "include",
         body: JSON.stringify({
           items: cart.map(item => ({
             productId: item.productId,
@@ -37,12 +35,7 @@ export default function CartPage() {
         })
       })
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        alert(data.error)
-        return
-      }
+      if (!data) return
 
       // ✅ clear cart after success
       clearCart()
@@ -50,9 +43,8 @@ export default function CartPage() {
       // ✅ go to orders page
       router.push("/customer/orders")
 
-    } catch (err) {
-      console.error(err)
-      alert("Checkout failed")
+    } catch (err: any) {
+      alert(err.message || "Checkout failed")
     }
   }
 

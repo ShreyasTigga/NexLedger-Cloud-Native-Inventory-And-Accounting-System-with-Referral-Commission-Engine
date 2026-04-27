@@ -41,7 +41,9 @@ export async function GET(req: NextRequest) {
       .limit(50)
       .lean()
 
-    return NextResponse.json(entries)
+    return NextResponse.json({
+      entries
+    })
 
   } catch (err: any) {
     return NextResponse.json(

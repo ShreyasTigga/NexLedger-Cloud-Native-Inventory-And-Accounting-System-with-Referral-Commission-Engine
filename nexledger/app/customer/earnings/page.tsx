@@ -1,16 +1,42 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { apiFetch } from "@/lib/apiFetch" // ✅ ADD
 
 export default function EarningsPage() {
 
   const [earnings, setEarnings] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch("/api/customer/earnings", { credentials: "include" })
-      .then(res => res.json())
-      .then(setEarnings)
+
+    const fetchEarnings = async () => {
+      try {
+        const data = await apiFetch("/api/customer/earnings")
+
+        if (!data) return
+
+        // ✅ FIX: correct response handling
+        setEarnings(data.earnings || [])
+
+      } catch (err: any) {
+        console.error(err.message || "Failed to load earnings")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchEarnings()
+
   }, [])
+
+  if (loading) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        Loading earnings...
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -32,8 +58,10 @@ export default function EarningsPage() {
                 <p className="font-semibold">
                   Level {e.level}
                 </p>
+
+                {/* ✅ FIXED FIELD */}
                 <p className="text-sm text-gray-500">
-                  From User: {e.fromUserId}
+                  From: {e.sourceCustomerId?.name || "User"}
                 </p>
               </div>
 

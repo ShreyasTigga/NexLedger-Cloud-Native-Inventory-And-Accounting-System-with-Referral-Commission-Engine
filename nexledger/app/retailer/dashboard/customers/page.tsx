@@ -24,7 +24,7 @@ export default function CustomersPage() {
 
       if (!data) return
 
-      setCustomers(Array.isArray(data) ? data : [])
+      setCustomers(Array.isArray(data.customers) ? data.customers : [])
       setLoading(false)
     }
 

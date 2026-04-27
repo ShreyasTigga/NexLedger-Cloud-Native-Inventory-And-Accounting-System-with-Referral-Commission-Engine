@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useCart } from "@/components/CartProvider"
+import { apiFetch } from "@/lib/apiFetch" // ✅ ADD
 
 interface Product {
   _id: string
@@ -17,20 +18,31 @@ export default function ShopPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState("")
+  const [loading, setLoading] = useState(true)
 
   const { addToCart } = useCart()
 
   const fetchProducts = async () => {
+    try {
+      setLoading(true)
 
-    const params = new URLSearchParams()
+      const params = new URLSearchParams()
 
-    if (search) params.append("search", search)
-    if (category) params.append("category", category)
+      if (search) params.append("search", search)
+      if (category) params.append("category", category)
 
-    const res = await fetch(`/api/store/products?${params.toString()}`)
-    const data = await res.json()
+      // 🔥 FIXED
+      const data = await apiFetch(`/api/store/products?${params.toString()}`)
 
-     setProducts(data.products || []) 
+      if (!data) return
+
+      setProducts(data.products || [])
+
+    } catch (err: any) {
+      console.error(err.message || "Failed to load products")
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -68,6 +80,13 @@ export default function ShopPage() {
         </select>
 
       </div>
+
+      {/* Loading */}
+      {loading && (
+        <p className="text-center text-gray-500">
+          Loading products...
+        </p>
+      )}
 
       {/* Product Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">

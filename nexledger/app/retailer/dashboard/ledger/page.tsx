@@ -22,7 +22,10 @@ export default function LedgerPage() {
     const fetchLedger = async () => {
       const data = await apiFetch("/api/ledger")
 
-      if (!data) return
+      if (!data || !Array.isArray(data.entries)) {
+        setEntries([]) // ✅ SAFE FALLBACKa
+        return
+      }
 
       setEntries(data.entries || [])
     }
@@ -35,7 +38,7 @@ export default function LedgerPage() {
   // ================= FILTER =================
   const filteredEntries = safeEntries.filter(e => {
     if (filter === "all") return true
-    return e.referenceModel?.toLowerCase() === filter
+    return (e.referenceModel || "").toLowerCase() === filter
   })
 
   // ================= COLORS =================
@@ -63,18 +66,20 @@ export default function LedgerPage() {
   // ================= RUNNING BALANCE =================
   let balance = 0
 
-  const processed = filteredEntries.map(entry => {
-    if (entry.type === "debit") {
-      balance -= entry.amount
-    } else {
-      balance += entry.amount
-    }
+const sortedEntries = [...filteredEntries].reverse()
 
-    return {
-      ...entry,
-      balance
-    }
-  })
+const processed = sortedEntries.map(entry => {
+  if (entry.type === "debit") {
+    balance -= entry.amount
+  } else {
+    balance += entry.amount
+  }
+
+  return {
+    ...entry,
+    balance
+  }
+})
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
