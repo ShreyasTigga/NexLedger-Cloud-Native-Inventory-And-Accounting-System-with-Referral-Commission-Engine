@@ -25,15 +25,13 @@ export default function RetailerLoginPage() {
 
       if (!data) return
 
-      // ✅ ROLE CHECK FIRST (FIXED)
+      // ✅ ROLE CHECK
       if (data.role !== "retailer") {
         setError("Not a retailer account")
         return
       }
 
-      // 🔥 STORE TOKENS (FIXED POSITION)
-      localStorage.setItem("accessToken", data.accessToken)
-      localStorage.setItem("refreshToken", data.refreshToken)
+      // ❌ REMOVED localStorage (cookies handle auth)
 
       router.push("/retailer/dashboard")
 

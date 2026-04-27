@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // FIND USER (optimized)
+    // FIND USER
     const user = await User.findOne({
       $or: [{ email: identifier }, { phone: identifier }]
     })
@@ -77,66 +77,34 @@ export async function POST(req: NextRequest) {
       userId: user._id
     })
 
-    // OPTIONAL: store refresh token in DB
+    // STORE refresh token in DB
     user.refreshToken = refreshToken
     await user.save()
 
     const res = NextResponse.json({
       message: "Login successful",
-      role: user.role,
-      accessToken,     // ✅ ADDED
-      refreshToken     // ✅ ADDED
+      role: user.role
+      // ❌ No need to send tokens to frontend anymore
     })
 
-    // ================= COOKIES =================
-
-    const isRetailer = user.role === "retailer"
-
-    const accessTokenName = isRetailer
-      ? "retailerToken"
-      : "customerToken"
-
-    const refreshTokenName = isRetailer
-      ? "retailerRefreshToken"
-      : "customerRefreshToken"
-
-    // 🔥 CLEAR OTHER ROLE COOKIE
-    res.cookies.set("retailerToken", "", {
-      expires: new Date(0),
-      path: "/"
-    })
-
-    res.cookies.set("customerToken", "", {
-      expires: new Date(0),
-      path: "/"
-    })
-
-    res.cookies.set("retailerRefreshToken", "", {
-      expires: new Date(0),
-      path: "/"
-    })
-
-    res.cookies.set("customerRefreshToken", "", {
-      expires: new Date(0),
-      path: "/"
-    })
+    // ================= COOKIES (SIMPLIFIED) =================
 
     // 🔐 ACCESS TOKEN
-    res.cookies.set(accessTokenName, accessToken, {
+    res.cookies.set("accessToken", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 15
+      maxAge: 60 * 15 // 15 min
     })
 
     // 🔐 REFRESH TOKEN
-    res.cookies.set(refreshTokenName, refreshToken, {
+    res.cookies.set("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7
+      maxAge: 60 * 60 * 24 * 7 // 7 days
     })
 
     return res

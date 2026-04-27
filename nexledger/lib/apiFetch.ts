@@ -1,75 +1,21 @@
-let isRefreshing = false
-let refreshPromise: Promise<string | null> | null = null
-
-async function refreshAccessToken() {
-  try {
-    const refreshToken = localStorage.getItem("refreshToken")
-
-    if (!refreshToken) return null
-
-    const res = await fetch("/api/auth/refresh", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${refreshToken}`
-      }
-    })
-
-    if (!res.ok) return null
-
-    const data = await res.json()
-
-    localStorage.setItem("accessToken", data.accessToken)
-    localStorage.setItem("refreshToken", data.refreshToken)
-
-    return data.accessToken
-
-  } catch {
-    return null
-  }
-}
-
 export async function apiFetch(
   url: string,
   options: RequestInit = {}
 ) {
-  let accessToken = localStorage.getItem("accessToken")
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    },
+    credentials: "include" 
+  })
 
-  const makeRequest = async (token: string | null) => {
-    return fetch(url, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(options.headers || {}),
-        ...(token && { Authorization: `Bearer ${token}` })
-      }
-    })
-  }
-
-  let res = await makeRequest(accessToken)
-
-  // 🔥 HANDLE 401
+  // 🔐 HANDLE UNAUTHORIZED
   if (res.status === 401) {
-
-    if (!isRefreshing) {
-      isRefreshing = true
-
-      refreshPromise = refreshAccessToken()
-        .finally(() => {
-          isRefreshing = false
-        })
-    }
-
-    const newToken = await refreshPromise
-
-    if (!newToken) {
-      // ❌ Logout
-      localStorage.clear()
-      window.location.href = "/auth/login"
-      return null
-    }
-
-    // 🔁 Retry
-    res = await makeRequest(newToken)
+    // Redirect to login (session expired / not logged in)
+    window.location.href = "/auth/login"
+    return null
   }
 
   let data = null

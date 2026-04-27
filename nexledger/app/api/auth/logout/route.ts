@@ -33,11 +33,9 @@ export async function POST(req: NextRequest) {
       expires: new Date(0)
     }
 
-    // 🔥 CLEAR ALL AUTH COOKIES
-    res.cookies.set("retailerToken", "", cookieOptions)
-    res.cookies.set("retailerRefreshToken", "", cookieOptions)
-    res.cookies.set("customerToken", "", cookieOptions)
-    res.cookies.set("customerRefreshToken", "", cookieOptions)
+    // 🔥 CLEAR AUTH COOKIES (SIMPLIFIED)
+    res.cookies.set("accessToken", "", cookieOptions)
+    res.cookies.set("refreshToken", "", cookieOptions)
 
     return res
 
