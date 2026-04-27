@@ -4,6 +4,7 @@ interface SalesItem {
   itemId: mongoose.Types.ObjectId
   name: string
   quantity: number
+  costPrice: number
   price: number
   taxRate: number
 
@@ -12,21 +13,34 @@ interface SalesItem {
 
   cgstAmount: number
   sgstAmount: number
-
   gstAmount: number
+
+  profit: number
   total: number
 }
 
 export interface SalesInvoiceDocument extends Document {
   retailerId: mongoose.Types.ObjectId
   customerId: mongoose.Types.ObjectId
-  referredBy?: mongoose.Types.ObjectId
+
+  invoiceNumber: string
+
+  // 🔥 Ledger link
+  transactionId: string
+
+  // 🔥 Referral config snapshot
+  referralConfigIdUsed?: mongoose.Types.ObjectId
 
   items: SalesItem[]
 
+  subtotal: number
+  taxAmount: number
+  discount: number
   totalAmount: number
-  profit: number
-  
+
+  amountPaid: number
+  paymentStatus: "paid" | "partial" | "pending"
+
   status: "pending" | "paid" | "shipped" | "delivered"
 
   createdAt: Date
@@ -49,9 +63,23 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
       index: true
     },
 
-    referredBy: {
+    invoiceNumber: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    // 🔥 LINK TO LEDGER
+    transactionId: {
+      type: String,
+      required: true,
+      index: true
+    },
+
+    // 🔥 CONFIG SNAPSHOT
+    referralConfigIdUsed: {
       type: Schema.Types.ObjectId,
-      ref: "Customer"
+      ref: "ReferralConfig"
     },
 
     items: [
@@ -62,82 +90,44 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
           required: true
         },
 
-        name: {
-          type: String,
-          required: true
-        },
+        name: { type: String, required: true },
 
-        quantity: {
-          type: Number,
-          required: true,
-          min: 1
-        },
+        quantity: { type: Number, required: true, min: 1 },
 
-        costPrice: {
-          type: Number,
-          required: true,
-          min: 0
-        },
+        costPrice: { type: Number, required: true, min: 0 },
 
-        price: {
-          type: Number,
-          required: true,
-          min: 0
-        },
+        price: { type: Number, required: true, min: 0 },
 
-        taxRate: {
-          type: Number,
-          required: true,
-          min: 0
-        },
+        taxRate: { type: Number, required: true, min: 0 },
 
-        cgst: {
-          type: Number,
-          required: true,
-          min: 0
-        },
+        cgst: { type: Number, required: true, min: 0 },
+        sgst: { type: Number, required: true, min: 0 },
 
-        sgst: {
-          type: Number,
-          required: true,
-          min: 0
-        },
+        cgstAmount: { type: Number, required: true, min: 0 },
+        sgstAmount: { type: Number, required: true, min: 0 },
 
-        cgstAmount: {
-          type: Number,
-          required: true,
-          min: 0
-        },
+        gstAmount: { type: Number, required: true, min: 0 },
 
-        sgstAmount: {
-          type: Number,
-          required: true,
-          min: 0
-        },
+        profit: { type: Number, default: 0 },
 
-        gstAmount: {
-          type: Number,
-          required: true,
-          min: 0
-        },
-
-        profit: {
-          type: Number,
-          default: 0
-        },
-
-        total: {
-          type: Number,
-          required: true,
-          min: 0
-        }
+        total: { type: Number, required: true, min: 0 }
       }
     ],
 
-    totalAmount: {
-      type: Number,
-      required: true,
-      min: 0
+    // 🔥 FINANCIALS
+    subtotal: { type: Number, required: true, min: 0 },
+    taxAmount: { type: Number, default: 0, min: 0 },
+    discount: { type: Number, default: 0, min: 0 },
+
+    totalAmount: { type: Number, required: true, min: 0 },
+
+    // 🔥 PAYMENT
+    amountPaid: { type: Number, default: 0, min: 0 },
+
+    paymentStatus: {
+      type: String,
+      enum: ["paid", "partial", "pending"],
+      default: "paid"
     },
 
     status: {
@@ -146,21 +136,19 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
       default: "paid"
     }
   },
-  {
-    timestamps: true
-  }
+  { timestamps: true }
 )
 
-// 🔥 INDEXES (IMPORTANT FOR PERFORMANCE)
+/* ================= INDEXES ================= */
 
-// Retailer dashboard
 SalesInvoiceSchema.index({ retailerId: 1, createdAt: -1 })
-
-// Customer order history
 SalesInvoiceSchema.index({ customerId: 1, createdAt: -1 })
 
-// Optional: faster referral tracking
-SalesInvoiceSchema.index({ referredBy: 1 })
+// 🔥 UNIQUE PER RETAILER
+SalesInvoiceSchema.index(
+  { retailerId: 1, invoiceNumber: 1 },
+  { unique: true }
+)
 
 const SalesInvoice =
   (models.SalesInvoice as mongoose.Model<SalesInvoiceDocument>) ||

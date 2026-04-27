@@ -12,8 +12,12 @@ export interface CustomerDocument extends Document {
   referredBy?: mongoose.Types.ObjectId
 
   level: number
+
   walletBalance: number
   totalEarnings: number
+  walletUpdatedAt?: Date // 🔥 NEW
+
+  isActive: boolean // 🔥 NEW
 
   createdAt: Date
   updatedAt: Date
@@ -75,16 +79,27 @@ const CustomerSchema = new Schema<CustomerDocument>(
       min: 0
     },
 
-    totalEarnings: 
-    { type: Number,
-       default: 0 
+    totalEarnings: {
+      type: Number,
+      default: 0
+    },
+
+    walletUpdatedAt: {
+      type: Date
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true
     }
   },
   { timestamps: true }
 )
 
+// INDEXES
 CustomerSchema.index({ retailerId: 1, level: 1 })
 CustomerSchema.index({ retailerId: 1, walletBalance: -1 })
+CustomerSchema.index({ retailerId: 1, referredBy: 1 }) // 🔥 NEW
 CustomerSchema.index(
   { retailerId: 1, referralCode: 1 },
   { unique: true }

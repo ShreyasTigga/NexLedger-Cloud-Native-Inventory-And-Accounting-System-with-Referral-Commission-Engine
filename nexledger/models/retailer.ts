@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, models, model } from "mongoose"
 
 export interface RetailerDocument extends Document {
   userId: mongoose.Types.ObjectId
+
   businessName: string
   ownerName: string
   email: string
@@ -17,6 +18,10 @@ export interface RetailerDocument extends Document {
 
   gstin?: string
   pan?: string
+
+  isActive: boolean
+
+  activeReferralConfigId?: mongoose.Types.ObjectId
 }
 
 const RetailerSchema = new Schema<RetailerDocument>(
@@ -25,7 +30,7 @@ const RetailerSchema = new Schema<RetailerDocument>(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true
+      unique: true // 🔥 IMPORTANT
     },
 
     businessName: {
@@ -47,6 +52,7 @@ const RetailerSchema = new Schema<RetailerDocument>(
       required: [true, "Email is required"],
       lowercase: true,
       trim: true,
+      unique: true, // 🔥 IMPORTANT
       match: [/^\S+@\S+\.\S+$/, "Invalid email format"]
     },
 
@@ -93,10 +99,29 @@ const RetailerSchema = new Schema<RetailerDocument>(
         /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/,
         "Invalid PAN format"
       ]
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+
+    // 🔥 LINK TO ACTIVE CONFIG
+    activeReferralConfigId: {
+      type: Schema.Types.ObjectId,
+      ref: "ReferralConfig"
     }
   },
   { timestamps: true }
 )
 
-export default models.Retailer ||
+/* ================= INDEXES ================= */
+
+RetailerSchema.index({ email: 1 })
+RetailerSchema.index({ phone: 1 })
+
+const Retailer =
+  (models.Retailer as mongoose.Model<RetailerDocument>) ||
   model<RetailerDocument>("Retailer", RetailerSchema)
+
+export default Retailer

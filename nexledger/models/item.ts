@@ -71,7 +71,8 @@ const ItemSchema = new Schema<ItemDocument>(
     taxRate: {
       type: Number,
       default: 0,
-      min: 0
+      min: 0,
+      max: 100
     },
 
     stockQuantity: {

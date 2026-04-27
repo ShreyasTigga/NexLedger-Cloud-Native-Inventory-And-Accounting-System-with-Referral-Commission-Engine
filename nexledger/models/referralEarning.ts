@@ -4,9 +4,17 @@ export interface ReferralEarningDocument extends Document {
   retailerId: mongoose.Types.ObjectId
   customerId: mongoose.Types.ObjectId
   sourceCustomerId: mongoose.Types.ObjectId
+
   level: number
   amount: number
+
+  // 🔥 NEW FIELDS (CRITICAL)
+  percentageUsed: number
+  commissionTypeUsed: "percentage" | "fixed"
+  configIdUsed?: mongoose.Types.ObjectId
+
   saleId: mongoose.Types.ObjectId
+
   createdAt: Date
 }
 
@@ -39,6 +47,24 @@ const ReferralEarningSchema = new Schema(
     amount: {
       type: Number,
       required: true
+    },
+
+    // 🔥 SNAPSHOT FIELDS (VERY IMPORTANT)
+
+    percentageUsed: {
+      type: Number,
+      required: true
+    },
+
+    commissionTypeUsed: {
+      type: String,
+      enum: ["percentage", "fixed"],
+      required: true
+    },
+
+    configIdUsed: {
+      type: Schema.Types.ObjectId,
+      ref: "ReferralConfig"
     },
 
     saleId: {

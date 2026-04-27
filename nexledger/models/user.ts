@@ -5,10 +5,14 @@ export interface UserDocument extends Document {
   email?: string
   phone?: string
   password: string
+
   role: "customer" | "retailer"
+
   refreshToken?: string | null
 
-  referralCode?: string // ✅ NEW
+  referralCode?: string
+
+  isActive: boolean
 
   createdAt: Date
   updatedAt: Date
@@ -18,20 +22,24 @@ const UserSchema = new Schema<UserDocument>(
   {
     name: {
       type: String,
-      required: true
+      required: true,
+      trim: true
     },
 
     email: {
       type: String,
       sparse: true,
       lowercase: true,
-      unique: true 
+      trim: true,
+      unique: true,
+      match: [/^\S+@\S+\.\S+$/, "Invalid email"]
     },
 
     phone: {
       type: String,
       sparse: true,
-      unique: true
+      unique: true,
+      match: [/^[6-9]\d{9}$/, "Invalid phone number"]
     },
 
     password: {
@@ -42,7 +50,8 @@ const UserSchema = new Schema<UserDocument>(
     role: {
       type: String,
       enum: ["customer", "retailer"],
-      required: true
+      required: true,
+      index: true // 🔥 IMPORTANT
     },
 
     refreshToken: {
@@ -52,14 +61,24 @@ const UserSchema = new Schema<UserDocument>(
 
     referralCode: {
       type: String,
-      unique: true,   
-      sparse: true    
+      unique: true,
+      sparse: true
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true
     }
   },
   {
     timestamps: true
   }
 )
+
+/* ================= INDEXES ================= */
+
+// Role-based queries
+UserSchema.index({ role: 1 })
 
 const User =
   (models.User as mongoose.Model<UserDocument>) ||
