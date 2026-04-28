@@ -226,9 +226,11 @@ export default function ProductsPage() {
             className="border rounded-lg p-2"
             value={form.unit} onChange={handleChange}>
             <option value="piece">Piece</option>
+            <option value="packet">Packet</option>
             <option value="kg">Kg</option>
             <option value="box">Box</option>
             <option value="litre">Litre</option>
+            <option value="bottle">Bottle</option>
           </select>
 
           <input name="costPrice" type="number"

@@ -9,6 +9,7 @@ import StockMovement from "@/models/stockMovement"
 import LedgerEntry from "@/models/ledgerEntry"
 import { processReferralCommission } from "@/lib/referralService"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
+import ReferralConfig from "@/models/referralConfig"
 
 export async function POST(req: NextRequest) {
   let session: ClientSession | null = null
@@ -19,12 +20,10 @@ export async function POST(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    // 🔐 AUTH
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // 🔐 ROLE
     if (user.role !== "retailer" && user.role !== "customer") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
@@ -39,7 +38,6 @@ export async function POST(req: NextRequest) {
     let retailerId: mongoose.Types.ObjectId
     let customerId: mongoose.Types.ObjectId
 
-    // ================= ROLE FLOW =================
     if (user.role === "retailer") {
       if (!user.userId) {
         return NextResponse.json({ error: "Invalid token" }, { status: 401 })
@@ -72,6 +70,15 @@ export async function POST(req: NextRequest) {
       let totalCGST = 0
       let totalSGST = 0
       let totalProfit = 0
+
+      const config = await ReferralConfig.findOne({
+        retailerId,
+        isActive: true
+      }).sort({ createdAt: -1 }).session(session)
+
+      if (!config) {
+        throw new Error("Referral config not found")
+      }
 
       for (const item of items) {
 
@@ -125,27 +132,59 @@ export async function POST(req: NextRequest) {
           cgstAmount,
           sgstAmount,
           gstAmount,
+          profit,
           total
         })
       }
 
-      // ================= CREATE INVOICE =================
+      const transactionId = `txn_${Date.now()}`
+      const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+
+      const amountPaid = body.amountPaid ?? totalAmount
+
+      const paymentStatus =
+        amountPaid === 0
+          ? "pending"
+          : amountPaid < totalAmount
+          ? "partial"
+          : "paid"
+
       const created = await SalesInvoice.create(
-  [
-    {
-      retailerId,
-      customerId,
-      referredBy: customer.referredBy,
-      items: processedItems,
-      totalAmount,
-      profit: totalProfit
-    }
-  ],
-  { session }
-)
+        [
+          {
+            retailerId,
+            customerId,
 
-const invoice = created[0] as any
+            invoiceNumber,
+            transactionId,
 
+            referralConfigIdUsed: config._id,
+
+            referralConfigSnapshot: {
+              levels: config.levels,
+              percentages: config.percentages,
+              commissionType: config.commissionType,
+              maxCommissionPerSale: config.maxCommissionPerSale
+            },
+
+            items: processedItems,
+
+            subtotal: totalAmount - (totalCGST + totalSGST),
+            taxAmount: totalCGST + totalSGST,
+            discount: 0,
+
+            totalAmount,
+
+            amountPaid,
+            paymentStatus,
+
+            profit: totalProfit // ✅ FIXED
+          }
+        ],
+        { session }
+      )
+
+      const invoice = created[0] as any
       invoiceId = invoice._id
 
       // ================= STOCK MOVEMENT =================
@@ -154,8 +193,11 @@ const invoice = created[0] as any
           retailerId,
           itemId: item.itemId,
           type: "sale",
-          quantity: -item.quantity,
-          reference: invoiceId!.toString()
+          direction: "out",
+          quantity: item.quantity,
+          transactionId,
+          referenceId: invoiceId!,
+          referenceModel: "Sale"
         })),
         { session }
       )
@@ -165,39 +207,47 @@ const invoice = created[0] as any
         [
           {
             retailerId,
+            transactionId,
+            account: "Accounts Receivable",
+            accountType: "asset",
             type: "debit",
-            account: "Customer",
             amount: totalAmount,
             referenceId: invoiceId!,
             referenceModel: "Sale",
-            description: "Sale"
+            description: "Sale to customer"
           },
           {
             retailerId,
+            transactionId,
+            account: "Sales Revenue",
+            accountType: "income",
             type: "credit",
-            account: "Sales",
             amount: totalAmount - (totalCGST + totalSGST),
             referenceId: invoiceId!,
             referenceModel: "Sale",
-            description: "Revenue"
+            description: "Revenue from sale"
           },
           {
             retailerId,
-            type: "credit",
+            transactionId,
             account: "CGST Payable",
+            accountType: "liability",
+            type: "credit",
             amount: totalCGST,
             referenceId: invoiceId!,
             referenceModel: "Sale",
-            description: "CGST"
+            description: "CGST collected"
           },
           {
             retailerId,
-            type: "credit",
+            transactionId,
             account: "SGST Payable",
+            accountType: "liability",
+            type: "credit",
             amount: totalSGST,
             referenceId: invoiceId!,
             referenceModel: "Sale",
-            description: "SGST"
+            description: "SGST collected"
           }
         ],
         { session }
@@ -210,6 +260,7 @@ const invoice = created[0] as any
           customerId,
           profitAmount: totalProfit,
           retailerId,
+          transactionId, // ✅ FIXED
           session: session ?? undefined
         })
       }

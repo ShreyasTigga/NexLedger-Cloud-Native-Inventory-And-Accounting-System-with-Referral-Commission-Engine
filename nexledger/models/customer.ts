@@ -15,9 +15,9 @@ export interface CustomerDocument extends Document {
 
   walletBalance: number
   totalEarnings: number
-  walletUpdatedAt?: Date // 🔥 NEW
+  walletUpdatedAt?: Date 
 
-  isActive: boolean // 🔥 NEW
+  isActive: boolean 
 
   createdAt: Date
   updatedAt: Date

@@ -13,10 +13,13 @@ function generateRetailerCode(name: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await mongoose.startSession()
-
   try {
+    // 🔥 MUST CONNECT FIRST
     await dbConnect()
+
+    const session = await mongoose.startSession()
+
+    let createdUser: any = null
 
     // ================= GET BODY =================
     let {
@@ -109,56 +112,57 @@ export async function POST(req: NextRequest) {
       exists = await User.findOne({ referralCode }).lean()
     } while (exists)
 
-    let createdUser: any = null
+    // ================= TRANSACTION =================
+    await session.withTransaction(async () => {
+      const user = await User.create(
+        [{
+          name: ownerName,
+          email,
+          phone,
+          password: hashedPassword,
+          role: "retailer",
+          referralCode
+        }],
+        { session }
+      )
 
-await session.withTransaction(async () => {
-  const user = await User.create(
-    [{
-      name: ownerName,
-      email,
-      phone,
-      password: hashedPassword,
-      role: "retailer",
-      referralCode
-    }],
-    { session }
-  )
+      createdUser = user[0]
 
-  createdUser = user[0]
+      await Retailer.create(
+        [{
+          userId: createdUser._id,
+          businessName,
+          ownerName,
+          email,
+          phone,
+          gstin,
+          pan,
+          address: {
+            line1: address.line1,
+            city: address.city,
+            state: address.state,
+            pincode: address.pincode,
+            country: "India"
+          }
+        }],
+        { session }
+      )
+    })
 
-  await Retailer.create(
-    [{
-      userId: createdUser._id,
-      businessName,
-      ownerName,
-      email,
-      phone,
-      gstin,
-      pan,
-      address: {
-        line1: address.line1,
-        city: address.city,
-        state: address.state,
-        pincode: address.pincode,
-        country: "India"
-      }
-    }],
-    { session }
-  )
-})
+    session.endSession()
 
-if (!createdUser) {
-  return NextResponse.json(
-    { error: "User creation failed" },
-    { status: 500 }
-  )
-}
+    if (!createdUser) {
+      return NextResponse.json(
+        { error: "User creation failed" },
+        { status: 500 }
+      )
+    }
 
     // ================= RESPONSE =================
     return NextResponse.json(
       {
         message: "Retailer registered successfully",
-        userId: createdUser?._id,
+        userId: createdUser._id,
         referralCode
       },
       { status: 201 }
@@ -171,8 +175,5 @@ if (!createdUser) {
       { error: err.message || "Server error" },
       { status: 500 }
     )
-
-  } finally {
-    session.endSession()
   }
 }

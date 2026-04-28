@@ -31,12 +31,21 @@ export interface SalesInvoiceDocument extends Document {
   // 🔥 Referral config snapshot
   referralConfigIdUsed?: mongoose.Types.ObjectId
 
+  referralConfigSnapshot?: {
+  levels: number
+  percentages: number[]
+  commissionType: "percentage" | "fixed"
+  maxCommissionPerSale?: number
+}
+
   items: SalesItem[]
 
   subtotal: number
   taxAmount: number
   discount: number
   totalAmount: number
+
+  profit: number
 
   amountPaid: number
   paymentStatus: "paid" | "partial" | "pending"

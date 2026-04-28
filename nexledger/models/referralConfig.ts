@@ -3,7 +3,7 @@ import mongoose, { Schema, Document, models, model } from "mongoose"
 export interface ReferralConfigDocument extends Document {
   retailerId: mongoose.Types.ObjectId
 
-  name: string // 🔥 NEW (important for UI)
+  name: string
 
   levels: number
   percentages: number[]
@@ -11,7 +11,7 @@ export interface ReferralConfigDocument extends Document {
   maxCommissionPerSale?: number
 
   isActive: boolean
-  isDeleted: boolean // 🔥 NEW (soft delete)
+  isDeleted: boolean
 
   createdAt: Date
   updatedAt: Date
@@ -22,24 +22,30 @@ const ReferralConfigSchema = new Schema<ReferralConfigDocument>(
     retailerId: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
-      index: true // ✅ instead of unique
+      required: true
     },
 
-    // 🔥 IDENTIFIER FOR MULTIPLE CONFIGS
     name: {
       type: String,
-      required: true
+      required: true,
+      trim: true
     },
 
     levels: {
       type: Number,
-      required: true
+      required: true,
+      min: 1
     },
 
     percentages: {
       type: [Number],
-      required: true
+      required: true,
+      validate: {
+        validator: function (this: any, arr: number[]) {
+          return arr.length === this.levels
+        },
+        message: "Percentages length must match levels"
+      }
     },
 
     commissionType: {
@@ -49,12 +55,13 @@ const ReferralConfigSchema = new Schema<ReferralConfigDocument>(
     },
 
     maxCommissionPerSale: {
-      type: Number
+      type: Number,
+      min: 0
     },
 
     isActive: {
       type: Boolean,
-      default: false // 🔥 IMPORTANT (no auto active)
+      default: false
     },
 
     isDeleted: {
@@ -65,17 +72,28 @@ const ReferralConfigSchema = new Schema<ReferralConfigDocument>(
   { timestamps: true }
 )
 
-// Fast lookup
+/* ================= INDEXES ================= */
+
+// Basic lookup
 ReferralConfigSchema.index({ retailerId: 1 })
 
-// Ensure unique config name per retailer
+// Unique name per retailer (excluding deleted)
 ReferralConfigSchema.index(
   { retailerId: 1, name: 1 },
-  { unique: true }
+  {
+    unique: true,
+    partialFilterExpression: { isDeleted: false }
+  }
 )
 
-// Optional: speed active config lookup
-ReferralConfigSchema.index({ retailerId: 1, isActive: 1 })
+// Only ONE active config per retailer
+ReferralConfigSchema.index(
+  { retailerId: 1, isActive: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { isActive: true }
+  }
+)
 
 export default models.ReferralConfig ||
   model<ReferralConfigDocument>("ReferralConfig", ReferralConfigSchema)

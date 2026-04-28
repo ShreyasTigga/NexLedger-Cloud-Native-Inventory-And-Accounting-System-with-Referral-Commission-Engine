@@ -3,11 +3,13 @@ import ReferralConfig from "@/models/referralConfig"
 import ReferralEarning from "@/models/referralEarning"
 import LedgerEntry from "@/models/ledgerEntry"
 import mongoose, { ClientSession } from "mongoose"
+import SalesInvoice from "@/models/salesInvoice"
 
 interface Props {
   saleId: mongoose.Types.ObjectId
   customerId: mongoose.Types.ObjectId
   retailerId: mongoose.Types.ObjectId
+  transactionId: string
   profitAmount: number
   session?: ClientSession
 }
@@ -15,20 +17,39 @@ interface Props {
 export async function processReferralCommission({
   saleId,
   customerId,
-  profitAmount,
   retailerId,
+  transactionId, 
+  profitAmount,
   session
 }: Props) {
   try {
     const dbSession = session || null
 
-    // ================= GET CONFIG =================
-    const config = await ReferralConfig.findOne({
-      retailerId,
-      isActive: true
-    }).session(dbSession)
+    // ================= GET SALE =================
+const sale = await SalesInvoice.findById(saleId)
+  .session(dbSession)
 
-    if (!config) return
+if (!sale || !sale.referralConfigSnapshot) {
+  console.log("⚠️ Missing snapshot for sale:", saleId)
+  return
+}
+
+// ================= GET CONFIG USED IN SALE =================
+const config = sale.referralConfigSnapshot
+
+if (!config) return
+
+// ================= IDEMPOTENCY CHECK =================
+const existing = await ReferralEarning.findOne({
+  saleId,
+  retailerId
+}).session(dbSession)
+
+if (existing) {
+  console.log("⚠️ Referral already processed for sale:", saleId)
+  return
+}
+    
 
     const {
       levels,
@@ -75,7 +96,6 @@ export async function processReferralCommission({
         commission = Math.min(commission, maxCommissionPerSale)
       }
 
-      // Skip if no earning
       if (commission <= 0) {
         parentId = parent.referredBy ?? undefined
         continue
@@ -106,23 +126,33 @@ export async function processReferralCommission({
         { session: dbSession }
       )
 
-      // ================= LEDGER ENTRY (DOUBLE ENTRY) =================
+      // ================= LEDGER ENTRY =================
       await LedgerEntry.insertMany(
         [
           {
             retailerId,
-            type: "debit",
+            transactionId, // ✅ FIXED
+
             account: "Commission Expense",
+            accountType: "expense", // ✅ FIXED
+
+            type: "debit",
             amount: commission,
+
             referenceId: saleId,
             referenceModel: "Referral",
             description: `Level ${level + 1} commission`
           },
           {
             retailerId,
+            transactionId, // ✅ FIXED
+
+            account: "Customer Wallet",
+            accountType: "liability", // ✅ FIXED
+
             type: "credit",
-            account: `Wallet - ${parent.name}`,
             amount: commission,
+
             referenceId: saleId,
             referenceModel: "Referral",
             description: "Wallet credit"

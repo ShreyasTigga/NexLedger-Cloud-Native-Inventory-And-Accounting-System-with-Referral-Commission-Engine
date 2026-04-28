@@ -15,7 +15,7 @@ export default function RetailerRegisterPage() {
 
   const [line1, setLine1] = useState("")
   const [city, setCity] = useState("")
-  const [stateName, setStateName] = useState("") // ✅ FIXED
+  const [stateName, setStateName] = useState("") // 
   const [pincode, setPincode] = useState("")
 
   const [gstin, setGstin] = useState("")

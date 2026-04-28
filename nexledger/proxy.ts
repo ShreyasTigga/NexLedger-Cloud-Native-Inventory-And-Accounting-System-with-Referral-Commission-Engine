@@ -10,7 +10,10 @@ export function proxy(req: NextRequest) {
   // ================= PUBLIC ROUTES =================
   const isPublicRoute =
     pathname.startsWith("/retailer/login") ||
+     pathname.startsWith("/retailer/register") ||
     pathname.startsWith("/customer/login") ||
+    pathname.startsWith("/customer/register") ||
+    pathname.startsWith("/auth") ||
     pathname.startsWith("/api/auth")
 
   if (isPublicRoute) {

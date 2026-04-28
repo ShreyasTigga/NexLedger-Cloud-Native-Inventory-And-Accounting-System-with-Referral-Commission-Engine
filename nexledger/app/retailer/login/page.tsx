@@ -10,9 +10,11 @@ export default function RetailerLoginPage() {
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
 
   async function handleLogin() {
     setError("")
+    setLoading(true)
 
     try {
       const data = await apiFetch("/api/auth/login", {
@@ -25,48 +27,89 @@ export default function RetailerLoginPage() {
 
       if (!data) return
 
-      // ✅ ROLE CHECK
       if (data.role !== "retailer") {
         setError("Not a retailer account")
+        setLoading(false)
         return
       }
-
-      // ❌ REMOVED localStorage (cookies handle auth)
 
       router.push("/retailer/dashboard")
 
     } catch (err: any) {
       setError(err.message || "Login failed")
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div className="max-w-md mx-auto p-6 space-y-4">
-      <h1 className="text-xl font-semibold">Retailer Login</h1>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
 
-      <input
-        placeholder="Email or Phone"
-        value={identifier}
-        onChange={(e) => setIdentifier(e.target.value)}
-        className="border p-2 w-full rounded"
-      />
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden">
 
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        className="border p-2 w-full rounded"
-      />
+        {/* HEADER */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+          <h1 className="text-2xl font-semibold">Retailer Login</h1>
+          <p className="text-sm text-blue-100">
+            Access your NexLedger dashboard
+          </p>
+        </div>
 
-      <button
-        onClick={handleLogin}
-        className="bg-blue-600 text-white px-4 py-2 rounded w-full"
-      >
-        Login
-      </button>
+        {/* BODY */}
+        <div className="p-6 space-y-4">
 
-      {error && <p className="text-red-500">{error}</p>}
+          {error && (
+            <div className="bg-red-100 text-red-600 p-2 rounded text-sm">
+              {error}
+            </div>
+          )}
+
+          {/* IDENTIFIER */}
+          <div>
+            <label className="text-sm font-medium">Email or Phone</label>
+            <input
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="Enter email or phone"
+              className="w-full mt-1 border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* PASSWORD */}
+          <div>
+            <label className="text-sm font-medium">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter password"
+              className="w-full mt-1 border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* LOGIN BUTTON */}
+          <button
+            onClick={handleLogin}
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded transition"
+          >
+            {loading ? "Logging in..." : "Login"}
+          </button>
+
+          {/* REGISTER CTA */}
+          <p className="text-sm text-center">
+            Don’t have a retailer account?{" "}
+            <span
+              onClick={() => router.push("/retailer/register")}
+              className="text-blue-600 font-medium cursor-pointer hover:underline"
+            >
+              Register here
+            </span>
+          </p>
+
+        </div>
+      </div>
     </div>
   )
 }

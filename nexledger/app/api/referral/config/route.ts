@@ -25,12 +25,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const config = await ReferralConfig.findOne({
-      retailerId: user.userId,
-      isActive: true
-    }).lean()
+    const configs = await ReferralConfig.find({
+      retailerId: user.userId
+    })
+    .sort({ createdAt: -1 })
+    .lean()
 
-    return NextResponse.json(config)
+    return NextResponse.json(configs)
 
   } catch (err: any) {
     return NextResponse.json(
@@ -78,21 +79,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const config = await ReferralConfig.findOneAndUpdate(
-      { retailerId: user.userId },
-      {
-        retailerId: user.userId,
-        levels,
-        percentages,
-        commissionType,
-        maxCommissionPerSale,
-        isActive: true
-      },
-      {
-        upsert: true,
-        new: true
-      }
-    )
+    const config = await ReferralConfig.create({
+      retailerId: user.userId,
+      levels,
+      percentages,
+      commissionType,
+      maxCommissionPerSale,
+      isActive: false 
+    })
 
     return NextResponse.json(config)
 
