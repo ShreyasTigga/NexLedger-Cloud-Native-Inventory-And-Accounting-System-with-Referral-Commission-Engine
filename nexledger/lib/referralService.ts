@@ -25,6 +25,12 @@ export async function processReferralCommission({
   try {
     const dbSession = session || null
 
+    console.log("REFERRAL START", {
+      saleId,
+      customerId,
+      profitAmount
+    })
+
     // ================= GET SALE =================
 const sale = await SalesInvoice.findById(saleId)
   .session(dbSession)
@@ -62,6 +68,9 @@ if (existing) {
     const currentUser = await Customer.findById(customerId)
       .session(dbSession)
 
+      // 🔥 2️⃣ CUSTOMER LOG
+    console.log("CUSTOMER:", currentUser)
+
     if (!currentUser || !currentUser.referredBy) return
 
     let parentId: mongoose.Types.ObjectId | undefined =
@@ -76,6 +85,9 @@ if (existing) {
 
       const parent = await Customer.findById(parentId)
         .session(dbSession)
+
+        // 🔥 3️⃣ LEVEL LOG
+      console.log("LEVEL", level + 1, "PARENT:", parent?._id)
 
       if (!parent) break
 
@@ -95,6 +107,9 @@ if (existing) {
       if (maxCommissionPerSale) {
         commission = Math.min(commission, maxCommissionPerSale)
       }
+
+      // 🔥 4️⃣ COMMISSION LOG
+      console.log("COMMISSION:", commission)
 
       if (commission <= 0) {
         parentId = parent.referredBy ?? undefined

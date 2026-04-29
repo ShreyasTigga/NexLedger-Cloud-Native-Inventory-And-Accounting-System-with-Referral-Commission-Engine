@@ -8,6 +8,8 @@ export default function ReferralConfigPage() {
   const [configs, setConfigs] = useState<any[]>([])
   const [selectedConfig, setSelectedConfig] = useState<any | null>(null)
 
+  const [name, setName] = useState("") // ✅ FIXED (missing state)
+
   const [levels, setLevels] = useState(1)
   const [percentages, setPercentages] = useState<number[]>([0])
   const [commissionType, setCommissionType] = useState("percentage")
@@ -27,12 +29,19 @@ export default function ReferralConfigPage() {
 
   // ================= LOAD INTO FORM =================
   const loadConfig = (cfg: any) => {
-    setSelectedConfig(cfg)
-    setLevels(cfg.levels)
-    setPercentages(cfg.percentages)
-    setCommissionType(cfg.commissionType)
-    setMaxCap(cfg.maxCommissionPerSale || "")
-  }
+  console.log("LOADED CONFIG:", cfg)
+
+  setSelectedConfig({
+    ...cfg,
+    _id: String(cfg._id) // ✅ normalize ID
+  })
+
+  setName(cfg.name || "")
+  setLevels(cfg.levels)
+  setPercentages(cfg.percentages)
+  setCommissionType(cfg.commissionType)
+  setMaxCap(cfg.maxCommissionPerSale || "")
+}
 
   // ================= LEVEL CHANGE =================
   const handleLevelChange = (value: number) => {
@@ -49,17 +58,27 @@ export default function ReferralConfigPage() {
 
   // ================= CREATE / UPDATE =================
   const saveConfig = async () => {
+
+    console.log("Selected Config:", selectedConfig)
+    console.log("ID being sent:", selectedConfig?._id)
+
+    if (!name.trim()) {
+      alert("Config name is required")
+      return
+    }
+
     setLoading(true)
 
-    const endpoint = selectedConfig
-      ? `/api/referral/config/${selectedConfig._id}`
-      : "/api/referral/config"
+    const endpoint = selectedConfig?._id
+  ? `/api/referral/config/${String(selectedConfig._id)}`
+  : "/api/referral/config"
 
-    const method = selectedConfig ? "PUT" : "POST"
+    const method = selectedConfig?._id ? "PUT" : "POST"
 
     const data = await apiFetch(endpoint, {
       method,
       body: JSON.stringify({
+        name: name.trim(), // ✅ FIXED
         levels,
         percentages,
         commissionType,
@@ -104,6 +123,7 @@ export default function ReferralConfigPage() {
   // ================= RESET =================
   const resetForm = () => {
     setSelectedConfig(null)
+    setName("") // ✅ FIXED
     setLevels(1)
     setPercentages([0])
     setCommissionType("percentage")
@@ -132,6 +152,7 @@ export default function ReferralConfigPage() {
               <p className="font-semibold">
                 {cfg.isActive ? "🟢 Active" : "⚪ Inactive"}
               </p>
+              <p><strong>{cfg.name}</strong></p> {/* ✅ show name */}
               <p>Levels: {cfg.levels}</p>
               <p>{cfg.percentages.join(" %, ")} %</p>
             </div>
@@ -146,7 +167,7 @@ export default function ReferralConfigPage() {
 
               {!cfg.isActive && (
                 <button
-                  onClick={() => activateConfig(cfg._id)}
+                  onClick={() => activateConfig(String(cfg._id))}
                   className="px-3 py-1 bg-green-600 text-white rounded"
                 >
                   Activate
@@ -154,7 +175,7 @@ export default function ReferralConfigPage() {
               )}
 
               <button
-                onClick={() => deleteConfig(cfg._id)}
+                onClick={() => deleteConfig(String(cfg._id))}
                 className="px-3 py-1 bg-red-500 text-white rounded"
               >
                 Delete
@@ -170,6 +191,14 @@ export default function ReferralConfigPage() {
         <h2 className="font-semibold">
           {selectedConfig ? "Edit Config" : "Create New Config"}
         </h2>
+
+        {/* NAME */}
+        <input
+          placeholder="Config Name (e.g. Default Plan)"
+          className="border p-2 w-full rounded"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
 
         {/* LEVELS */}
         <input

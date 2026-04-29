@@ -7,6 +7,7 @@ interface Item {
   _id: string
   name: string
   sellingPrice: number
+  costPrice: number
 }
 
 interface InvoiceItem {
@@ -81,7 +82,10 @@ export default function PurchasePage() {
 
     if (field === "productId") {
       const selected = products.find(p => p._id === value)
-      updated[index].purchasePrice = selected?.sellingPrice || 0
+
+      console.log("SELECTED PRODUCT:", selected)
+
+      updated[index].purchasePrice = selected?.costPrice || 0
     }
 
     updated[index] = {
@@ -102,6 +106,8 @@ export default function PurchasePage() {
 
   const handleSubmit = async (e: any) => {
     e.preventDefault()
+
+    console.log("FORM ITEMS BEFORE SUBMIT:", items)
 
     if (!supplierId) {
       alert("Please select a supplier")

@@ -104,7 +104,7 @@ export default function LoginPage() {
             Don’t have an account?{" "}
             <span
               className="text-blue-600 cursor-pointer"
-              onClick={() => router.push("/auth/register")}
+              onClick={() => router.push("/customer/register")}
             >
               Register
             </span>

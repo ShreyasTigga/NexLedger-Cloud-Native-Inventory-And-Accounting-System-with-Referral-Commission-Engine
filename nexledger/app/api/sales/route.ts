@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
           retailerId
         }).session(session)
 
+        console.log("PRODUCT:", product)
+
         if (!product) throw new Error("Product not found")
 
         if (product.stockQuantity < item.quantity) {
@@ -178,7 +180,7 @@ export async function POST(req: NextRequest) {
             amountPaid,
             paymentStatus,
 
-            profit: totalProfit // ✅ FIXED
+            profit: totalProfit 
           }
         ],
         { session }
@@ -187,20 +189,39 @@ export async function POST(req: NextRequest) {
       const invoice = created[0] as any
       invoiceId = invoice._id
 
-      // ================= STOCK MOVEMENT =================
-      await StockMovement.insertMany(
-        processedItems.map(item => ({
-          retailerId,
-          itemId: item.itemId,
-          type: "sale",
-          direction: "out",
-          quantity: item.quantity,
-          transactionId,
-          referenceId: invoiceId!,
-          referenceModel: "Sale"
-        })),
-        { session }
-      )
+// ================= STOCK MOVEMENT =================
+for (const item of processedItems) {
+
+  const product = await Item.findOne({
+    _id: item.itemId,
+    retailerId
+  }).session(session)
+
+  if (!product) throw new Error("Product not found")
+
+  const stockAfter = product.stockQuantity // already reduced above
+
+  await StockMovement.create(
+    [
+      {
+        retailerId,
+        itemId: item.itemId,
+
+        type: "sale",
+        direction: "out",
+
+        quantity: item.quantity,
+        transactionId,
+
+        referenceId: invoiceId!,
+        referenceModel: "Sale",
+
+        stockAfter 
+      }
+    ],
+    { session }
+  )
+}
 
       // ================= LEDGER =================
       await LedgerEntry.insertMany(
@@ -254,13 +275,16 @@ export async function POST(req: NextRequest) {
       )
 
       // ================= REFERRAL =================
+
+      console.log("TOTAL PROFIT:", totalProfit)
+
       if (totalProfit > 0) {
         await processReferralCommission({
           saleId: invoiceId!,
           customerId,
           profitAmount: totalProfit,
           retailerId,
-          transactionId, // ✅ FIXED
+          transactionId, 
           session: session ?? undefined
         })
       }

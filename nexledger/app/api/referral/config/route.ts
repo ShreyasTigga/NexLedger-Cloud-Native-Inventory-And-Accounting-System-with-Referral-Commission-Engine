@@ -53,12 +53,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // 🔐 ROLE
     if (user.role !== "retailer") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    // 🔐 TOKEN SAFETY
     if (!user.userId) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
@@ -66,11 +64,20 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
 
     const {
+      name, // ✅ FIXED
       levels,
       percentages,
       commissionType,
       maxCommissionPerSale
     } = body
+
+    // ✅ VALIDATION
+    if (!name || !name.trim()) {
+      return NextResponse.json(
+        { error: "Config name is required" },
+        { status: 400 }
+      )
+    }
 
     if (!levels || !percentages || percentages.length !== levels) {
       return NextResponse.json(
@@ -81,11 +88,12 @@ export async function POST(req: NextRequest) {
 
     const config = await ReferralConfig.create({
       retailerId: user.userId,
+      name: name.trim(), // ✅ FIXED
       levels,
       percentages,
       commissionType,
       maxCommissionPerSale,
-      isActive: false 
+      isActive: false
     })
 
     return NextResponse.json(config)

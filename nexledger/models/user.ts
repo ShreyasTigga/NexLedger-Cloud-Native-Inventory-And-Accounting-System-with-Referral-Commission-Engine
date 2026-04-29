@@ -51,7 +51,6 @@ const UserSchema = new Schema<UserDocument>(
       type: String,
       enum: ["customer", "retailer"],
       required: true,
-      index: true // 🔥 IMPORTANT
     },
 
     refreshToken: {

@@ -28,17 +28,11 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<any>(null)
   const [viewProduct, setViewProduct] = useState<any>(null)
 
-  const [categories, setCategories] = useState<string[]>([
-    "Grocery",
-    "Electronics",
-    "Clothing",
-    "Dairy",
-    "BodyCare",
-    "Luxury",
-    "Others"
-  ])
+  const [categories, setCategories] = useState<string[]>([])
+  const [units, setUnits] = useState<string[]>([])
 
-  const [showCustomCategory, setShowCustomCategory] = useState(false)
+  const [customCategory, setCustomCategory] = useState("")
+  const [customUnit, setCustomUnit] = useState("")
 
   const [form, setForm] = useState({
     name: "",
@@ -66,8 +60,39 @@ export default function ProductsPage() {
   }
 
   useEffect(() => {
-    fetchProducts()
-  }, [search, page])
+  fetchProducts()
+}, [search, page])
+
+useEffect(() => {
+  loadSettings()
+}, [])
+
+async function loadSettings() {
+  const data = await apiFetch("/api/settings")
+
+  if (!data) {
+    setCategories(["General"])
+    setUnits(["piece"])
+    return
+  }
+
+  const finalCategories =
+    data.categories?.length ? data.categories : ["General"]
+
+  const finalUnits =
+    data.units?.length ? data.units : ["piece"]
+
+  setCategories(finalCategories)
+  setUnits(finalUnits)
+
+  // 🔥 ensure valid unit always
+  setForm(prev => ({
+    ...prev,
+    unit: finalUnits.includes(prev.unit)
+      ? prev.unit
+      : finalUnits[0]
+  }))
+}
 
   const handleChange = (e: any) => {
     setForm({ ...form, [e.target.name]: e.target.value })
@@ -76,9 +101,17 @@ export default function ProductsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (form.category && !categories.includes(form.category)) {
-      setCategories([...categories, form.category])
+    if (form.category === "__custom__") {
+      alert("Please add category first")
+      return
     }
+
+    if (form.unit === "__custom__") {
+      alert("Please add unit first")
+      return
+    }
+
+    console.log("FORM DATA SENT:", form)
 
     const data = await apiFetch("/api/inventory/items", {
       method: "POST",
@@ -180,58 +213,137 @@ export default function ProductsPage() {
             value={form.barcode} onChange={handleChange} />
 
           {/* CATEGORY */}
-          <select
-            name="category"
-            value={form.category}
-            onChange={(e) => {
-              const value = e.target.value
+          <div className="space-y-2">
 
-              if (value === "ADD_NEW") {
-                setShowCustomCategory(true)
-                setForm({ ...form, category: "" })
-              } else {
-                setShowCustomCategory(false)
-                setForm({ ...form, category: value })
-              }
-            }}
-            className="border p-2 rounded w-full"
-            required
-          >
-            <option value="">Select Category</option>
+  <select
+    name="category"
+    value={form.category}
+    onChange={(e) => setForm({ ...form, category: e.target.value })}
+    className="border p-2 rounded w-full"
+    required
+  >
+    <option value="">Select Category</option>
 
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
+    {categories.map((cat) => (
+      <option key={cat} value={cat}>{cat}</option>
+    ))}
 
-            <option value="ADD_NEW">+ Add New Category</option>
-          </select>
+    <option value="__custom__">+ Add New</option>
+  </select>
 
-          {showCustomCategory && (
-            <input
-              type="text"
-              placeholder="Enter new category"
-              value={form.category}
-              onChange={(e) =>
-                setForm({ ...form, category: e.target.value })
-              }
-              className="border p-2 rounded w-full mt-2"
-            />
-          )}
+  {form.category === "__custom__" && (
+    <div className="flex gap-2">
+      <input
+        type="text"
+        placeholder="New category"
+        value={customCategory}
+        onChange={(e) => setCustomCategory(e.target.value)}
+        className="border p-2 rounded w-full"
+      />
+
+      <button
+        type="button"
+        onClick={async () => {
+          const value = customCategory.trim()
+          if (!value) return
+
+          const formatted =
+            value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+
+          const exists = categories.some(
+  c => c.toLowerCase() === formatted.toLowerCase()
+)
+
+if (!exists) {
+  const updated = [...categories, formatted]
+
+            setCategories(updated)
+
+            await apiFetch("/api/settings", {
+  method: "POST",
+  body: JSON.stringify({
+    categories: updated,
+    units
+  })
+})
+          }
+
+          setForm({ ...form, category: formatted })
+          setCustomCategory("")
+        }}
+        className="bg-green-600 text-white px-3 rounded"
+      >
+        Add
+      </button>
+    </div>
+  )}
+
+</div>
 
           <input name="brand" placeholder="Brand"
             className="border rounded-lg p-2"
             value={form.brand} onChange={handleChange} />
 
-          <select name="unit"
-            className="border rounded-lg p-2"
-            value={form.unit} onChange={handleChange}>
-            <option value="piece">Piece</option>
-            <option value="packet">Packet</option>
-            <option value="kg">Kg</option>
-            <option value="box">Box</option>
-            <option value="litre">Litre</option>
-            <option value="bottle">Bottle</option>
-          </select>
+            {/*UNIT*/ }
+
+          <div className="space-y-2">
+
+  <select
+    name="unit"
+    value={form.unit}
+    onChange={(e) => setForm({ ...form, unit: e.target.value })}
+    className="border p-2 rounded w-full"
+  >
+    {units.map((u) => (
+      <option key={u} value={u}>
+        {u.charAt(0).toUpperCase() + u.slice(1)}
+      </option>
+    ))}
+
+    <option value="__custom__">+ Add Unit</option>
+  </select>
+
+  {form.unit === "__custom__" && (
+    <div className="flex gap-2">
+      <input
+        type="text"
+        placeholder="New unit"
+        value={customUnit}
+        onChange={(e) => setCustomUnit(e.target.value)}
+        className="border p-2 rounded w-full"
+      />
+
+      <button
+        type="button"
+        onClick={async () => {
+          const value = customUnit.trim().toLowerCase()
+          if (!value) return
+
+          if (!units.includes(value)) {
+            const updated = [...units, value]
+
+            setUnits(updated)
+
+            await apiFetch("/api/settings", {
+  method: "POST",
+  body: JSON.stringify({
+    categories,
+    units: updated
+  })
+})
+          }
+
+          setForm({ ...form, unit: value })
+          setCustomUnit("")
+        }}
+        className="bg-green-600 text-white px-3 rounded"
+      >
+        Add
+      </button>
+    </div>
+  )}
+
+</div>
 
           <input name="costPrice" type="number"
             placeholder="Cost Price"

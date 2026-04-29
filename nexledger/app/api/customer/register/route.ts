@@ -209,20 +209,6 @@ export async function POST(req: NextRequest) {
       const customer = customerArr[0]
       createdCustomer = customer
 
-      // ================= LEDGER ENTRY =================
-      await LedgerEntry.create(
-        [{
-          retailerId,
-          account: "Customer Registration",
-          type: "credit",
-          amount: 0,
-          description: `New customer registered: ${name}`,
-          referenceId: customer._id,
-          referenceModel: "Customer"
-        }],
-        { session }
-      )
-
     })
 
     return NextResponse.json(

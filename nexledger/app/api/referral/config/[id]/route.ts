@@ -7,38 +7,21 @@ import mongoose from "mongoose"
 // ================= UPDATE CONFIG =================
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await dbConnect()
 
     const user = await getUserFromRequest(req)
 
-    // 🔐 AUTH
-    if (!user) {
+    if (!user || user.role !== "retailer" || !user.userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       )
     }
 
-    // 🔐 ROLE
-    if (user.role !== "retailer") {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      )
-    }
-
-    // 🔐 TOKEN SAFETY
-    if (!user.userId) {
-      return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 401 }
-      )
-    }
-
-    const { id } = params
+    const { id } = await params
 
     // 🔍 VALIDATION
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -51,13 +34,21 @@ export async function PUT(
     const body = await req.json()
 
     const {
+      name, // ✅ FIXED
       levels,
       percentages,
       commissionType,
       maxCommissionPerSale
     } = body
 
-    // 🔍 BUSINESS VALIDATION
+    // 🔍 VALIDATION
+    if (!name || !name.trim()) {
+      return NextResponse.json(
+        { error: "Config name is required" },
+        { status: 400 }
+      )
+    }
+
     if (!levels || !percentages || percentages.length !== levels) {
       return NextResponse.json(
         { error: "Invalid levels/percentages" },
@@ -65,13 +56,13 @@ export async function PUT(
       )
     }
 
-    // 🔍 UPDATE
     const updated = await ReferralConfig.findOneAndUpdate(
       {
         _id: id,
-        retailerId: user.userId // 🔐 ensures ownership
+        retailerId: user.userId
       },
       {
+        name: name.trim(), // ✅ FIXED
         levels,
         percentages,
         commissionType,
@@ -103,40 +94,22 @@ export async function PUT(
 // ================= DELETE CONFIG =================
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await dbConnect()
 
     const user = await getUserFromRequest(req)
 
-    // 🔐 AUTH
-    if (!user) {
+    if (!user || user.role !== "retailer" || !user.userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       )
     }
 
-    // 🔐 ROLE
-    if (user.role !== "retailer") {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      )
-    }
+    const { id } = await params
 
-    // 🔐 TOKEN SAFETY
-    if (!user.userId) {
-      return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 401 }
-      )
-    }
-
-    const { id } = params
-
-    // 🔍 VALIDATION
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json(
         { error: "Invalid config ID" },
@@ -144,7 +117,6 @@ export async function DELETE(
       )
     }
 
-    // 🔍 CHECK EXISTENCE
     const config = await ReferralConfig.findOne({
       _id: id,
       retailerId: user.userId
@@ -157,7 +129,7 @@ export async function DELETE(
       )
     }
 
-    // ⚠️ PREVENT DELETING ACTIVE CONFIG (important rule)
+    // ⚠️ IMPORTANT RULE
     if (config.isActive) {
       return NextResponse.json(
         { error: "Cannot delete active config" },

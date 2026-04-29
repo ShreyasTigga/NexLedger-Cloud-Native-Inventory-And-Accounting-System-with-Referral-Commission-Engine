@@ -28,7 +28,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    // 🔐 TOKEN SAFETY
     if (!user.userId) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
@@ -44,22 +43,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (!supplierId || !mongoose.Types.ObjectId.isValid(supplierId)) {
-      return NextResponse.json(
-        { error: "Invalid supplier" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Invalid supplier" }, { status: 400 })
     }
 
     const supplier = await Supplier.findById(supplierId).lean()
 
     if (!supplier) {
-      return NextResponse.json(
-        { error: "Supplier not found" },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: "Supplier not found" }, { status: 404 })
     }
 
-    // 🔒 Prevent duplicate invoice number per retailer
     const existingInvoice = await PurchaseInvoice.findOne({
       invoiceNumber,
       retailerId: user.userId
@@ -78,6 +70,8 @@ export async function POST(req: NextRequest) {
       // ================= PROCESS ITEMS =================
       for (const entry of items) {
         const { productId, quantity, purchasePrice } = entry
+
+        console.log("PURCHASE PRICE:", purchasePrice)
 
         if (
           !productId ||
@@ -116,25 +110,13 @@ export async function POST(req: NextRequest) {
 
         const totalAmount = quantity * purchasePrice
 
+        // 🔥 UPDATE STOCK FIRST
         await Item.findOneAndUpdate(
           { _id: productId, retailerId: user.userId },
           {
             stockQuantity: totalQty,
             costPrice: newCostPrice
           },
-          { session }
-        )
-
-        await StockMovement.create(
-          [
-            {
-              retailerId: user.userId,
-              itemId: productId,
-              type: "purchase",
-              quantity,
-              reference: invoiceNumber
-            }
-          ],
           { session }
         )
 
@@ -149,15 +131,24 @@ export async function POST(req: NextRequest) {
         invoiceTotal += totalAmount
       }
 
+      // ================= GENERATE TRANSACTION =================
+      const transactionId = new mongoose.Types.ObjectId().toString()
+
       // ================= CREATE INVOICE =================
       const purchase = await PurchaseInvoice.create(
         [
           {
             retailerId: user.userId,
             invoiceNumber,
+            transactionId,
+
             supplierId,
-            totalAmount: invoiceTotal,
-            items: processedItems
+            supplierName: supplier.name,
+
+            items: processedItems,
+
+            subtotal: invoiceTotal,
+            totalAmount: invoiceTotal
           }
         ],
         { session }
@@ -165,23 +156,67 @@ export async function POST(req: NextRequest) {
 
       const createdPurchase = purchase[0]
 
+      // ================= STOCK MOVEMENT =================
+      for (const entry of processedItems) {
+
+        const product = await Item.findOne({
+          _id: entry.productId,
+          retailerId: user.userId
+        }).session(session)
+
+        if (!product) throw new Error("Product not found")
+
+        const stockAfter = product.stockQuantity
+
+        await StockMovement.create(
+          [
+            {
+              retailerId: user.userId,
+              itemId: entry.productId,
+
+              type: "purchase",
+              direction: "in",
+
+              transactionId,
+              quantity: entry.quantity,
+
+              referenceId: createdPurchase._id,
+              referenceModel: "Purchase",
+
+              stockAfter // ✅ IMPORTANT
+            }
+          ],
+          { session }
+        )
+      }
+
       // ================= LEDGER ENTRY =================
       await LedgerEntry.insertMany(
         [
           {
             retailerId: user.userId,
+            transactionId, // ✅ REQUIRED
+
+            account: "Inventory",
+            accountType: "asset", // ✅ REQUIRED
+
             type: "debit",
-            account: "Purchase",
             amount: invoiceTotal,
+
             referenceId: createdPurchase._id,
             referenceModel: "Purchase",
             description: "Stock purchase"
           },
           {
             retailerId: user.userId,
-            type: "credit",
+            transactionId, // ✅ REQUIRED
+
             account: "Cash",
+            accountType: "asset", // ✅ REQUIRED
+
+            type: "credit",
             amount: invoiceTotal,
+
             referenceId: createdPurchase._id,
             referenceModel: "Purchase",
             description: "Payment made"
@@ -217,19 +252,8 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    // 🔐 AUTH
-    if (!user) {
+    if (!user || user.role !== "retailer" || !user.userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    // 🔐 ROLE
-    if (user.role !== "retailer") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
-    // 🔐 TOKEN SAFETY
-    if (!user.userId) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const { searchParams } = new URL(req.url)
@@ -238,9 +262,7 @@ export async function GET(req: NextRequest) {
     const limit = 10
     const skip = (page - 1) * limit
 
-    const query = {
-      retailerId: user.userId
-    }
+    const query = { retailerId: user.userId }
 
     const invoices = await PurchaseInvoice.find(query)
       .sort({ createdAt: -1 })

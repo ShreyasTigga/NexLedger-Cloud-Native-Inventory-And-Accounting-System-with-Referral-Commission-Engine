@@ -6,19 +6,15 @@ export interface StockMovementDocument extends Document {
 
   type: "purchase" | "sale" | "adjustment"
 
-  // 🔥 Direction clarity
   direction: "in" | "out"
 
   quantity: number
 
-  // 🔥 Link to system transaction
   transactionId: string
 
-  // 🔗 Structured reference
   referenceId?: mongoose.Types.ObjectId
   referenceModel?: "Purchase" | "Sale" | "Adjustment"
 
-  // 🔥 Optional snapshot
   stockAfter?: number
 
   notes?: string
@@ -48,7 +44,6 @@ const StockMovementSchema = new Schema<StockMovementDocument>(
       required: true
     },
 
-    // 🔥 CLEAR STOCK FLOW
     direction: {
       type: String,
       enum: ["in", "out"],
@@ -61,14 +56,12 @@ const StockMovementSchema = new Schema<StockMovementDocument>(
       min: 1
     },
 
-    // 🔥 CONNECT TO LEDGER / INVOICE
     transactionId: {
       type: String,
       required: true,
-      index: true
+      trim: true
     },
 
-    // 🔗 STRUCTURED REFERENCE
     referenceId: {
       type: Schema.Types.ObjectId
     },
@@ -78,7 +71,6 @@ const StockMovementSchema = new Schema<StockMovementDocument>(
       enum: ["Purchase", "Sale", "Adjustment"]
     },
 
-    // 🔥 STOCK DEBUGGING
     stockAfter: {
       type: Number,
       min: 0
@@ -90,16 +82,17 @@ const StockMovementSchema = new Schema<StockMovementDocument>(
     }
   },
   {
-    timestamps: { createdAt: true, updatedAt: false }
+    timestamps: { createdAt: true, updatedAt: false },
+    strict: true // 🔥 prevents unwanted fields
   }
 )
 
 /* ================= INDEXES ================= */
 
-// Fast inventory history per item
+// Fast item history
 StockMovementSchema.index({ retailerId: 1, itemId: 1, createdAt: -1 })
 
-// Transaction-based lookup
+// Transaction lookup
 StockMovementSchema.index({ transactionId: 1 })
 
 // Reference lookup

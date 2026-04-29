@@ -58,11 +58,9 @@ const LedgerEntrySchema = new Schema<LedgerEntryDocument>(
       min: 0
     },
 
-    // 🔥 TRANSACTION GROUPING
     transactionId: {
       type: String,
       required: true,
-      index: true
     },
 
     // 🔗 OPTIONAL LINKS

@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
     const formatted = customers.map((c: any) => ({
       id: c._id,
-      name: c.userId?.name,
+      name: c.userId?.name || c.name,
       email: c.userId?.email,
       phone: c.userId?.phone,
       referralCode: c.referralCode,

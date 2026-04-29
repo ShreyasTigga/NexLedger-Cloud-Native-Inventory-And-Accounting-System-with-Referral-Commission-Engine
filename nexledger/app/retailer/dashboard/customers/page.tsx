@@ -17,26 +17,53 @@ export default function CustomersPage() {
 
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const fetchCustomers = async () => {
+  async function fetchCustomers() {
+    try {
+      setLoading(true)
+
       const data = await apiFetch("/api/customer/list")
 
-      if (!data) return
+      if (!data) {
+        setError("Failed to load customers")
+        return
+      }
 
       setCustomers(Array.isArray(data.customers) ? data.customers : [])
+
+    } catch (err: any) {
+      setError(err.message || "Something went wrong")
+    } finally {
       setLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchCustomers()
   }, [])
 
-  if (loading) return <p className="p-6">Loading customers...</p>
+  if (loading) {
+    return <p className="p-6">Loading customers...</p>
+  }
+
+  if (error) {
+    return <p className="p-6 text-red-500">{error}</p>
+  }
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
 
-      <h1 className="text-2xl font-semibold">Customers</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-semibold">Customers</h1>
+
+        <button
+          onClick={fetchCustomers}
+          className="text-sm bg-gray-100 px-3 py-1 rounded hover:bg-gray-200"
+        >
+          Refresh
+        </button>
+      </div>
 
       <div className="bg-white rounded-xl shadow overflow-x-auto">
 
@@ -64,7 +91,9 @@ export default function CustomersPage() {
               customers.map(c => (
                 <tr key={c.id} className="border-b hover:bg-gray-50">
 
-                  <td className="p-3 font-medium">{c.name}</td>
+                  <td className="p-3 font-medium">
+                    {c.name || "Unknown"}
+                  </td>
 
                   <td className="p-3">{c.phone || "-"}</td>
 
@@ -86,7 +115,7 @@ export default function CustomersPage() {
                     {c.referredBy || "-"}
                   </td>
 
-                  <td className="p-3 font-mono">
+                  <td className="p-3 font-mono text-xs">
                     {c.referralCode}
                   </td>
 

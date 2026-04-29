@@ -11,7 +11,8 @@ import {
   BookOpen,
   LogOut,
   Settings,
-  Users
+  Users,
+  BarChart3
 } from "lucide-react"
 
 export default function DashboardLayout({
@@ -28,6 +29,7 @@ export default function DashboardLayout({
     { name: "Dashboard", href: BASE, icon: LayoutDashboard },
     { name: "Products", href: `${BASE}/products`, icon: Package },
     { name: "Purchase", href: `${BASE}/purchase`, icon: ShoppingCart },
+    { name: "Stock History", href: `${BASE}/stock-history`, icon: BarChart3 },
     { name: "Sales", href: `${BASE}/sales`, icon: ShoppingCart },
     { name: "Ledger", href: `${BASE}/ledger`, icon: BookOpen },
     { name: "Add Customer", href: `${BASE}/customers/create`, icon: Users},

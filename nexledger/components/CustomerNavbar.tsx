@@ -1,13 +1,15 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { ShoppingCart } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { ShoppingCart, LogOut } from "lucide-react"
 import { useCart } from "@/components/CartProvider"
+import { apiFetch } from "@/lib/apiFetch"
 
 export default function CustomerNavbar() {
 
   const pathname = usePathname()
+  const router = useRouter()
   const { cart } = useCart()
 
   const cartCount = cart.reduce(
@@ -15,11 +17,25 @@ export default function CustomerNavbar() {
     0
   )
 
-  // 🔥 helper for active link
   const linkClass = (path: string) =>
     `hover:text-blue-600 ${
       pathname === path ? "text-blue-600 font-semibold" : "text-gray-700"
     }`
+
+  // 🔥 LOGOUT FUNCTION
+  async function handleLogout() {
+    try {
+      await apiFetch("/api/auth/logout", {
+        method: "POST"
+      })
+
+      // 🔥 redirect after logout
+      router.push("/customer/login")
+
+    } catch (err) {
+      console.error("Logout failed")
+    }
+  }
 
   return (
     <header className="bg-white shadow-sm border-b sticky top-0 z-50">
@@ -66,6 +82,15 @@ export default function CustomerNavbar() {
               </span>
             )}
           </Link>
+
+          {/* 🔥 LOGOUT BUTTON */}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1 text-gray-700 hover:text-red-600"
+          >
+            <LogOut size={18} />
+            Logout
+          </button>
 
         </nav>
 

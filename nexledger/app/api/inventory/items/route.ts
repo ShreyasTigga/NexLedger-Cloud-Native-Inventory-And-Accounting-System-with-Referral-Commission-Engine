@@ -28,6 +28,8 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
 
+    console.log("RAW BODY:", body)
+
     const name = body.name?.trim()
     const sku = body.sku?.trim()
     const barcode = body.barcode?.trim()
@@ -58,6 +60,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Barcode already exists" }, { status: 400 })
       }
     }
+
+    console.log("FINAL VALUES:", {
+  costPrice: Number(costPrice),
+  sellingPrice: Number(sellingPrice)
+})
 
     const item = await Item.create({
       retailerId: user.userId,
@@ -126,7 +133,7 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .select("name sku category sellingPrice taxRate stockQuantity")
+      .select("name sku category costPrice sellingPrice taxRate stockQuantity")
       .lean()
 
     const total = await Item.countDocuments(query)
