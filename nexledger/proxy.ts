@@ -1,32 +1,36 @@
 import { NextRequest, NextResponse } from "next/server"
 import jwt from "jsonwebtoken"
 
-export function proxy(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  // 🔐 GET TOKEN FROM COOKIE
   const token = req.cookies.get("accessToken")?.value
 
   // ================= PUBLIC ROUTES =================
   const isPublicRoute =
     pathname.startsWith("/retailer/login") ||
-     pathname.startsWith("/retailer/register") ||
-    pathname.startsWith("/customer/login") ||
-    pathname.startsWith("/customer/register") ||
-    pathname.startsWith("/auth") ||
+    pathname.startsWith("/retailer/register") ||
+    pathname.startsWith("/customer-auth/login") ||
+    pathname.startsWith("/customer-auth/register") ||
     pathname.startsWith("/api/auth")
-
-  if (isPublicRoute) {
-    return NextResponse.next()
-  }
 
   // ================= NO TOKEN =================
   if (!token) {
-    if (pathname.startsWith("/customer")) {
-      return NextResponse.redirect(new URL("/customer/login", req.url))
+    if (!isPublicRoute) {
+      if (pathname.startsWith("/customer")) {
+        return NextResponse.redirect(
+          new URL("/customer-auth/login", req.url)
+        )
+      }
+
+      if (pathname.startsWith("/retailer")) {
+        return NextResponse.redirect(
+          new URL("/retailer/login", req.url)
+        )
+      }
     }
 
-    return NextResponse.redirect(new URL("/retailer/login", req.url))
+    return NextResponse.next()
   }
 
   try {
@@ -34,34 +38,61 @@ export function proxy(req: NextRequest) {
       role: string
     }
 
-    // ================= ROLE-BASED ROUTING =================
-
-    if (pathname.startsWith("/retailer")) {
-      if (decoded.role !== "retailer") {
-        return NextResponse.redirect(new URL("/retailer/login", req.url))
+    // ================= BLOCK AUTH PAGES IF LOGGED IN =================
+    if (pathname.startsWith("/customer-auth")) {
+      if (decoded.role === "customer") {
+        return NextResponse.redirect(
+          new URL("/customer/shop", req.url)
+        )
       }
     }
 
+    if (pathname.startsWith("/retailer/login")) {
+      if (decoded.role === "retailer") {
+        return NextResponse.redirect(
+          new URL("/retailer/dashboard", req.url)
+        )
+      }
+    }
+
+    // ================= ROLE-BASED PROTECTION =================
+
     if (pathname.startsWith("/customer")) {
       if (decoded.role !== "customer") {
-        return NextResponse.redirect(new URL("/customer/login", req.url))
+        return NextResponse.redirect(
+          new URL("/customer-auth/login", req.url)
+        )
+      }
+    }
+
+    if (pathname.startsWith("/retailer")) {
+      if (decoded.role !== "retailer") {
+        return NextResponse.redirect(
+          new URL("/retailer/login", req.url)
+        )
       }
     }
 
     return NextResponse.next()
 
-  } catch (err) {
+  } catch {
+    // invalid token
     if (pathname.startsWith("/customer")) {
-      return NextResponse.redirect(new URL("/customer/login", req.url))
+      return NextResponse.redirect(
+        new URL("/customer-auth/login", req.url)
+      )
     }
 
-    return NextResponse.redirect(new URL("/retailer/login", req.url))
+    return NextResponse.redirect(
+      new URL("/retailer/login", req.url)
+    )
   }
 }
 
 export const config = {
   matcher: [
-    "/retailer/:path*",
-    "/customer/:path*"
+    "/customer/:path*",
+    "/customer-auth/:path*",
+    "/retailer/:path*"
   ]
 }

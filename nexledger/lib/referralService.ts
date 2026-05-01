@@ -1,6 +1,7 @@
 import Customer from "@/models/customer"
 import ReferralEarning from "@/models/referralEarning"
 import LedgerEntry from "@/models/ledgerEntry"
+import WalletTransaction from "@/models/walletTransaction" // ✅ ADD
 import mongoose, { ClientSession } from "mongoose"
 import SalesInvoice from "@/models/salesInvoice"
 
@@ -34,16 +35,12 @@ export async function processReferralCommission({
     const sale = await SalesInvoice.findById(saleId)
       .session(dbSession)
 
-    console.log("SNAPSHOT FROM DB:", sale?.referralConfigSnapshot)
-
     const snapshot = sale?.referralConfigSnapshot
 
     if (!snapshot) {
       console.log("⚠️ Missing snapshot")
       return
     }
-
-    console.log("VALID SNAPSHOT:", snapshot)
 
     // ================= IDEMPOTENCY =================
     const existing = await ReferralEarning.findOne({
@@ -68,8 +65,6 @@ export async function processReferralCommission({
     const currentUser = await Customer.findById(customerId)
       .session(dbSession)
 
-    console.log("CUSTOMER:", currentUser)
-
     if (!currentUser || !currentUser.referredBy) return
 
     let parentId: mongoose.Types.ObjectId | undefined =
@@ -77,11 +72,9 @@ export async function processReferralCommission({
 
     if (profitAmount <= 0) return
 
-    // ================= POOL CALCULATION =================
+    // ================= POOL =================
     const pool =
       (profitAmount * (distributionPercentage ?? 100)) / 100
-
-    console.log("POOL:", pool)
 
     if (pool <= 0) return
 
@@ -92,8 +85,6 @@ export async function processReferralCommission({
 
       const parent = await Customer.findById(parentId)
         .session(dbSession)
-
-      console.log("LEVEL", level + 1, "PARENT:", parent?._id)
 
       if (!parent) break
 
@@ -113,22 +104,36 @@ export async function processReferralCommission({
         commission = Math.min(commission, maxCommissionPerSale)
       }
 
-      console.log("COMMISSION:", commission)
-
       if (commission <= 0) {
         parentId = parent.referredBy ?? undefined
         continue
       }
 
-      // ================= WALLET =================
-      await Customer.findByIdAndUpdate(
-        parent._id,
+      // ================= WALLET UPDATE (FIXED) =================
+      const updatedCustomer = await Customer.findOneAndUpdate(
+        { _id: parent._id },
         {
           $inc: {
             walletBalance: commission,
             totalEarnings: commission
           }
         },
+        { new: true, session: dbSession }
+      )
+
+      if (!updatedCustomer) break
+
+      // ================= WALLET TRANSACTION (NEW) =================
+      await WalletTransaction.create(
+        [{
+          retailerId,
+          customerId: parent._id,
+          type: "credit",
+          source: "referral",
+          amount: commission,
+          balanceAfter: updatedCustomer.walletBalance, // ✅ CORRECT
+          referenceId: saleId
+        }],
         { session: dbSession }
       )
 
@@ -179,7 +184,6 @@ export async function processReferralCommission({
         { session: dbSession }
       )
 
-      // Move up tree
       parentId = parent.referredBy ?? undefined
     }
 

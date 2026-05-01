@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import Customer from "@/models/customer"
 import ReferralEarning from "@/models/referralEarning"
+import WalletTransaction from "@/models/walletTransaction" // ✅ NEW
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
 
 export async function GET(req: NextRequest) {
@@ -36,8 +37,10 @@ export async function GET(req: NextRequest) {
 
     const customerId = user.customerId
 
-    // 📦 FETCH CUSTOMER
-    const customer = await Customer.findById(customerId).lean()
+    // ================= CUSTOMER =================
+    const customer = await Customer.findById(customerId)
+      .select("walletBalance totalEarnings")
+      .lean()
 
     if (!customer) {
       return NextResponse.json(
@@ -46,7 +49,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // 💰 EARNINGS
+    // ================= RECENT EARNINGS =================
     const recentEarnings = await ReferralEarning.find({
       customerId
     })
@@ -56,10 +59,21 @@ export async function GET(req: NextRequest) {
       .select("amount level createdAt sourceCustomerId")
       .lean()
 
+    // ================= WALLET TRANSACTIONS =================
+    const transactions = await WalletTransaction.find({
+      customerId
+    })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select("type source amount balanceAfter createdAt")
+      .lean()
+
+    // ================= RESPONSE =================
     return NextResponse.json({
-      walletBalance: customer.walletBalance,
-      totalEarnings: customer.totalEarnings, // ✅ added
-      recentEarnings
+      walletBalance: customer.walletBalance || 0,
+      totalEarnings: customer.totalEarnings || 0,
+      recentEarnings,
+      transactions
     })
 
   } catch (err: any) {

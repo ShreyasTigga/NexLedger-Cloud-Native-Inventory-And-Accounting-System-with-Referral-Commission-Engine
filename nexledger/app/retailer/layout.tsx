@@ -26,16 +26,24 @@ export default function DashboardLayout({
   const BASE = "/retailer/dashboard"
 
   const navItems = [
-    { name: "Dashboard", href: BASE, icon: LayoutDashboard },
-    { name: "Products", href: `${BASE}/products`, icon: Package },
-    { name: "Purchase", href: `${BASE}/purchase`, icon: ShoppingCart },
-    { name: "Stock History", href: `${BASE}/stock-history`, icon: BarChart3 },
-    { name: "Sales", href: `${BASE}/sales`, icon: ShoppingCart },
-    { name: "Report", href: `${BASE}/ledger`, icon: BookOpen },
-    { name: "Add Customer", href: `${BASE}/customers/create`, icon: Users},
-    { name: "Customers", href: `${BASE}/customers`, icon: Users },
-    { name: "Referral Config", href: `${BASE}/referral`, icon: Settings }
-  ]
+  { name: "Dashboard", href: "/retailer/dashboard", icon: LayoutDashboard },
+
+  // INVENTORY
+  { name: "Products", href: "/retailer/inventory/products", icon: Package },
+  { name: "Purchase", href: "/retailer/inventory/purchase", icon: ShoppingCart },
+  { name: "Stock History", href: "/retailer/inventory/stock-history", icon: BarChart3 },
+
+  // SALES
+  { name: "Sales", href: "/retailer/sales/sales", icon: ShoppingCart },
+  { name: "Customers", href: "/retailer/sales/customers", icon: Users },
+  { name: "Add Customer", href: "/retailer/sales/customers/create", icon: Users },
+
+  // ACCOUNTING
+  { name: "Ledger", href: "/retailer/accounting/ledger", icon: BookOpen },
+
+  // REFERRAL
+  { name: "Referral Config", href: "/retailer/referral", icon: Settings }
+]
 
   const handleLogout = async () => {
   try {
