@@ -34,6 +34,7 @@ export interface SalesInvoiceDocument extends Document {
   referralConfigSnapshot?: {
   levels: number
   percentages: number[]
+  distributionPercentage: number
   commissionType: "percentage" | "fixed"
   maxCommissionPerSale?: number
 }
@@ -90,6 +91,32 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
       type: Schema.Types.ObjectId,
       ref: "ReferralConfig"
     },
+
+    referralConfigSnapshot: {
+  levels: {
+    type: Number,
+    default: 0
+  },
+  percentages: {
+    type: [Number],
+    default: []
+  },
+
+  distributionPercentage: {
+    type: Number,
+    default: 100
+  },
+  
+  commissionType: {
+    type: String,
+    enum: ["fixed", "percentage"],
+    default: "percentage"
+  },
+  maxCommissionPerSale: {
+    type: Number,
+    default: 0
+  }
+},
 
     items: [
       {

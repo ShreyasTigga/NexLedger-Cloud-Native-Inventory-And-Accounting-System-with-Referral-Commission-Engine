@@ -8,6 +8,7 @@ export interface ReferralConfigDocument extends Document {
   levels: number
   percentages: number[]
   commissionType: "percentage" | "fixed"
+  distributionPercentage: number
   maxCommissionPerSale?: number
 
   isActive: boolean
@@ -42,9 +43,15 @@ const ReferralConfigSchema = new Schema<ReferralConfigDocument>(
       required: true,
       validate: {
         validator: function (this: any, arr: number[]) {
-          return arr.length === this.levels
+          const sum = arr.reduce((a, b) => a + b, 0)
+
+          const validValues = arr.every(
+            (p) => p >= 0 && p <= 100
+          )
+
+          return arr.length === this.levels && sum <= 100 && validValues
         },
-        message: "Percentages length must match levels"
+        message: "Invalid percentage values"
       }
     },
 
@@ -52,6 +59,13 @@ const ReferralConfigSchema = new Schema<ReferralConfigDocument>(
       type: String,
       enum: ["percentage", "fixed"],
       default: "percentage"
+    },
+
+    distributionPercentage: {
+      type: Number,
+      default: 100,
+      min: 0,
+      max: 100
     },
 
     maxCommissionPerSale: {

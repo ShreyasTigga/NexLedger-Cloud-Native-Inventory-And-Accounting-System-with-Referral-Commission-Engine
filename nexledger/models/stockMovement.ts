@@ -10,6 +10,9 @@ export interface StockMovementDocument extends Document {
 
   quantity: number
 
+  price?: number
+  totalAmount?: number
+
   transactionId: string
 
   referenceId?: mongoose.Types.ObjectId
@@ -55,6 +58,16 @@ const StockMovementSchema = new Schema<StockMovementDocument>(
       required: true,
       min: 1
     },
+
+    price: {
+  type: Number,
+  min: 0
+},
+
+totalAmount: {
+  type: Number,
+  min: 0
+},
 
     transactionId: {
       type: String,

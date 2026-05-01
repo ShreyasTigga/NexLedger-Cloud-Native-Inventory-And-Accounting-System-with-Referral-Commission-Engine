@@ -18,12 +18,10 @@ export async function POST(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    // 🔐 AUTH
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // 🔐 ROLE
     if (user.role !== "retailer") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
@@ -33,7 +31,6 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-
     let { invoiceNumber, supplierId, items } = body
 
     invoiceNumber = invoiceNumber?.trim()
@@ -47,7 +44,6 @@ export async function POST(req: NextRequest) {
     }
 
     const supplier = await Supplier.findById(supplierId).lean()
-
     if (!supplier) {
       return NextResponse.json({ error: "Supplier not found" }, { status: 404 })
     }
@@ -65,13 +61,13 @@ export async function POST(req: NextRequest) {
 
       let invoiceTotal = 0
       const processedItems: any[] = []
+      const stockMovements: any[] = []
+      const itemUpdates: any[] = []
       const seenProducts = new Set()
 
       // ================= PROCESS ITEMS =================
       for (const entry of items) {
         const { productId, quantity, purchasePrice } = entry
-
-        console.log("PURCHASE PRICE:", purchasePrice)
 
         if (
           !productId ||
@@ -97,28 +93,34 @@ export async function POST(req: NextRequest) {
           throw new Error("Product not found")
         }
 
-        const oldQty = product.stockQuantity
-        const oldCost = product.costPrice
-        const totalQty = oldQty + quantity
+        const oldQty = product.stockQuantity || 0
+        const oldCost = product.costPrice || 0
+        const newQty = oldQty + quantity
 
-        let newCostPrice = purchasePrice
-
-        if (oldQty > 0) {
-          newCostPrice =
-            ((oldQty * oldCost) + (quantity * purchasePrice)) / totalQty
-        }
+        const newCostPrice =
+          oldQty > 0
+            ? ((oldQty * oldCost) + (quantity * purchasePrice)) / newQty
+            : purchasePrice
 
         const totalAmount = quantity * purchasePrice
 
-        // 🔥 UPDATE STOCK FIRST
-        await Item.findOneAndUpdate(
-          { _id: productId, retailerId: user.userId },
-          {
-            stockQuantity: totalQty,
-            costPrice: newCostPrice
-          },
-          { session }
-        )
+        invoiceTotal += totalAmount
+
+        // 📦 Prepare item update
+        itemUpdates.push({
+          productId,
+          newQty,
+          newCostPrice
+        })
+
+        // 📜 Prepare stock movement
+        stockMovements.push({
+          productId,
+          quantity,
+          purchasePrice,
+          totalAmount,
+          stockAfter: newQty
+        })
 
         processedItems.push({
           productId,
@@ -127,11 +129,9 @@ export async function POST(req: NextRequest) {
           purchasePrice,
           totalAmount
         })
-
-        invoiceTotal += totalAmount
       }
 
-      // ================= GENERATE TRANSACTION =================
+      // ================= TRANSACTION ID =================
       const transactionId = new mongoose.Types.ObjectId().toString()
 
       // ================= CREATE INVOICE =================
@@ -141,12 +141,9 @@ export async function POST(req: NextRequest) {
             retailerId: user.userId,
             invoiceNumber,
             transactionId,
-
             supplierId,
             supplierName: supplier.name,
-
             items: processedItems,
-
             subtotal: invoiceTotal,
             totalAmount: invoiceTotal
           }
@@ -157,66 +154,65 @@ export async function POST(req: NextRequest) {
       const createdPurchase = purchase[0]
 
       // ================= STOCK MOVEMENT =================
-      for (const entry of processedItems) {
-
-        const product = await Item.findOne({
-          _id: entry.productId,
-          retailerId: user.userId
-        }).session(session)
-
-        if (!product) throw new Error("Product not found")
-
-        const stockAfter = product.stockQuantity
-
+      for (const move of stockMovements) {
         await StockMovement.create(
           [
             {
               retailerId: user.userId,
-              itemId: entry.productId,
+              itemId: move.productId,
 
               type: "purchase",
               direction: "in",
 
               transactionId,
-              quantity: entry.quantity,
+
+              quantity: move.quantity,
+              price: move.purchasePrice,      // ✅ FIXED
+              totalAmount: move.totalAmount,  // ✅ FIXED
 
               referenceId: createdPurchase._id,
               referenceModel: "Purchase",
 
-              stockAfter // ✅ IMPORTANT
+              stockAfter: move.stockAfter
             }
           ],
           { session }
         )
       }
 
-      // ================= LEDGER ENTRY =================
+      // ================= UPDATE ITEMS =================
+      for (const update of itemUpdates) {
+        await Item.findOneAndUpdate(
+          { _id: update.productId, retailerId: user.userId },
+          {
+            stockQuantity: update.newQty,
+            costPrice: update.newCostPrice
+          },
+          { session }
+        )
+      }
+
+      // ================= ACCOUNTING LEDGER =================
       await LedgerEntry.insertMany(
         [
           {
             retailerId: user.userId,
-            transactionId, // ✅ REQUIRED
-
+            transactionId,
             account: "Inventory",
-            accountType: "asset", // ✅ REQUIRED
-
+            accountType: "asset",
             type: "debit",
             amount: invoiceTotal,
-
             referenceId: createdPurchase._id,
             referenceModel: "Purchase",
             description: "Stock purchase"
           },
           {
             retailerId: user.userId,
-            transactionId, // ✅ REQUIRED
-
+            transactionId,
             account: "Cash",
-            accountType: "asset", // ✅ REQUIRED
-
+            accountType: "asset",
             type: "credit",
             amount: invoiceTotal,
-
             referenceId: createdPurchase._id,
             referenceModel: "Purchase",
             description: "Payment made"
@@ -224,7 +220,6 @@ export async function POST(req: NextRequest) {
         ],
         { session }
       )
-
     })
 
     return NextResponse.json(

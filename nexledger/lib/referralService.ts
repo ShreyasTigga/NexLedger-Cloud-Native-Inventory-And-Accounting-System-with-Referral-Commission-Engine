@@ -1,5 +1,4 @@
 import Customer from "@/models/customer"
-import ReferralConfig from "@/models/referralConfig"
 import ReferralEarning from "@/models/referralEarning"
 import LedgerEntry from "@/models/ledgerEntry"
 import mongoose, { ClientSession } from "mongoose"
@@ -18,7 +17,7 @@ export async function processReferralCommission({
   saleId,
   customerId,
   retailerId,
-  transactionId, 
+  transactionId,
   profitAmount,
   session
 }: Props) {
@@ -32,43 +31,43 @@ export async function processReferralCommission({
     })
 
     // ================= GET SALE =================
-const sale = await SalesInvoice.findById(saleId)
-  .session(dbSession)
+    const sale = await SalesInvoice.findById(saleId)
+      .session(dbSession)
 
-if (!sale || !sale.referralConfigSnapshot) {
-  console.log("⚠️ Missing snapshot for sale:", saleId)
-  return
-}
+    console.log("SNAPSHOT FROM DB:", sale?.referralConfigSnapshot)
 
-// ================= GET CONFIG USED IN SALE =================
-const config = sale.referralConfigSnapshot
+    const snapshot = sale?.referralConfigSnapshot
 
-if (!config) return
+    if (!snapshot) {
+      console.log("⚠️ Missing snapshot")
+      return
+    }
 
-// ================= IDEMPOTENCY CHECK =================
-const existing = await ReferralEarning.findOne({
-  saleId,
-  retailerId
-}).session(dbSession)
+    console.log("VALID SNAPSHOT:", snapshot)
 
-if (existing) {
-  console.log("⚠️ Referral already processed for sale:", saleId)
-  return
-}
-    
+    // ================= IDEMPOTENCY =================
+    const existing = await ReferralEarning.findOne({
+      saleId,
+      retailerId
+    }).session(dbSession)
+
+    if (existing) {
+      console.log("⚠️ Referral already processed:", saleId)
+      return
+    }
 
     const {
       levels,
       percentages,
+      distributionPercentage,
       commissionType,
       maxCommissionPerSale
-    } = config
+    } = snapshot
 
-    // ================= GET CUSTOMER =================
+    // ================= CUSTOMER =================
     const currentUser = await Customer.findById(customerId)
       .session(dbSession)
 
-      // 🔥 2️⃣ CUSTOMER LOG
     console.log("CUSTOMER:", currentUser)
 
     if (!currentUser || !currentUser.referredBy) return
@@ -78,7 +77,15 @@ if (existing) {
 
     if (profitAmount <= 0) return
 
-    // ================= TRAVERSE TREE =================
+    // ================= POOL CALCULATION =================
+    const pool =
+      (profitAmount * (distributionPercentage ?? 100)) / 100
+
+    console.log("POOL:", pool)
+
+    if (pool <= 0) return
+
+    // ================= TRAVERSE =================
     for (let level = 0; level < levels; level++) {
 
       if (!parentId) break
@@ -86,20 +93,18 @@ if (existing) {
       const parent = await Customer.findById(parentId)
         .session(dbSession)
 
-        // 🔥 3️⃣ LEVEL LOG
       console.log("LEVEL", level + 1, "PARENT:", parent?._id)
 
       if (!parent) break
 
-      // Safety: prevent self-loop
       if (parent._id.equals(customerId)) break
 
-      // ================= CALCULATE COMMISSION =================
+      // ================= COMMISSION =================
       let commission = 0
 
       if (commissionType === "percentage") {
         const percent = percentages[level] || 0
-        commission = (profitAmount * percent) / 100
+        commission = (pool * percent) / 100
       } else {
         commission = percentages[level] || 0
       }
@@ -108,7 +113,6 @@ if (existing) {
         commission = Math.min(commission, maxCommissionPerSale)
       }
 
-      // 🔥 4️⃣ COMMISSION LOG
       console.log("COMMISSION:", commission)
 
       if (commission <= 0) {
@@ -116,7 +120,7 @@ if (existing) {
         continue
       }
 
-      // ================= UPDATE WALLET =================
+      // ================= WALLET =================
       await Customer.findByIdAndUpdate(
         parent._id,
         {
@@ -128,7 +132,7 @@ if (existing) {
         { session: dbSession }
       )
 
-      // ================= SAVE REFERRAL RECORD =================
+      // ================= REFERRAL RECORD =================
       await ReferralEarning.create(
         [{
           retailerId,
@@ -136,38 +140,37 @@ if (existing) {
           sourceCustomerId: customerId,
           level: level + 1,
           amount: commission,
-          saleId
+          saleId,
+          commissionTypeUsed: commissionType,
+          percentageUsed:
+            commissionType === "percentage"
+              ? percentages[level] || 0
+              : 0
         }],
         { session: dbSession }
       )
 
-      // ================= LEDGER ENTRY =================
+      // ================= LEDGER =================
       await LedgerEntry.insertMany(
         [
           {
             retailerId,
-            transactionId, // ✅ FIXED
-
+            transactionId,
             account: "Commission Expense",
-            accountType: "expense", // ✅ FIXED
-
+            accountType: "expense",
             type: "debit",
             amount: commission,
-
             referenceId: saleId,
             referenceModel: "Referral",
             description: `Level ${level + 1} commission`
           },
           {
             retailerId,
-            transactionId, // ✅ FIXED
-
+            transactionId,
             account: "Customer Wallet",
-            accountType: "liability", // ✅ FIXED
-
+            accountType: "liability",
             type: "credit",
             amount: commission,
-
             referenceId: saleId,
             referenceModel: "Referral",
             description: "Wallet credit"
@@ -176,7 +179,7 @@ if (existing) {
         { session: dbSession }
       )
 
-      // Move to next level
+      // Move up tree
       parentId = parent.referredBy ?? undefined
     }
 

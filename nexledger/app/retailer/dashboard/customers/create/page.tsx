@@ -14,6 +14,7 @@ export default function CreateCustomerPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [referralCode, setReferralCode] = useState("")
 
   function validateForm() {
     if (!name.trim() || name.length < 2) {
@@ -52,17 +53,18 @@ export default function CreateCustomerPage() {
         method: "POST",
         body: JSON.stringify({
           name: name.trim(),
-          email: email.trim(),
-          phone,
-          password
+          email: email.trim() || undefined,
+          phone: phone.trim(),
+          password,
+          referralCode: referralCode || undefined
         })
       })
 
       if (!data) return
 
-      alert("Customer created successfully ✅")
-
       router.push("/retailer/dashboard/customers")
+
+      alert("Customer created successfully ✅")
 
     } catch (err: any) {
       setError(err.message || "Failed to create customer")
@@ -109,9 +111,20 @@ export default function CreateCustomerPage() {
           onChange={(e) => setPassword(e.target.value)}
         />
 
+        <input
+          placeholder="Referral Code (optional)"
+          className="border p-2 w-full rounded uppercase"
+          value={referralCode}
+          onChange={(e) =>
+            setReferralCode(
+              e.target.value.replace(/\s/g, "").toUpperCase()
+            )
+          }
+        />
+
         <button
           className="bg-blue-600 text-white w-full p-2 rounded"
-          disabled={loading}
+          disabled={loading || !name || !phone || !password}
         >
           {loading ? "Creating..." : "Create Customer"}
         </button>

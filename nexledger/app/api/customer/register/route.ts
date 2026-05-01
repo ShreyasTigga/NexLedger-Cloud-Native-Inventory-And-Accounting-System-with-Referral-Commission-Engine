@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     name = name?.trim()
     email = email?.toLowerCase().trim()
     phone = phone?.trim()
-    referralCode = referralCode?.trim()
+    referralCode = referralCode?.trim().toUpperCase()
 
     // ================= VALIDATION =================
 
@@ -80,13 +80,13 @@ export async function POST(req: NextRequest) {
 
     const retailerUserId = userFromToken?.userId
 
-    // ✅ FIXED VALIDATION
-    if (!referralCode && !retailerUserId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      )
-    }
+    // ✅ VALIDATION
+    if (!retailerUserId) {
+  return NextResponse.json(
+    { error: "Only retailer can create customers" },
+    { status: 401 }
+  )
+}
 
     // ================= TRANSACTION =================
 
@@ -127,49 +127,29 @@ export async function POST(req: NextRequest) {
       let referredById: mongoose.Types.ObjectId | undefined
 
       // ================= REFERRAL FLOW =================
+      const retailer = await User.findOne({
+        _id: new mongoose.Types.ObjectId(retailerUserId),
+        role: "retailer"
+      }).session(session)
+
+      if (!retailer) {
+        throw new Error("Invalid retailer")
+      }
+
+      retailerId = retailer._id
+
+      // ================= OPTIONAL REFERRAL =================
       if (referralCode) {
-
-        let parentCustomer = await Customer.findOne({ referralCode }).session(session)
-
-        if (parentCustomer) {
-          retailerId = parentCustomer.retailerId
-
-          parentCustomer = await Customer.findOne({
-            referralCode,
-            retailerId
-          }).session(session)
-
-          if (!parentCustomer) {
-            throw new Error("Invalid referral code")
-          }
-
-          referredById = parentCustomer._id
-        } else {
-          const parentRetailer = await User.findOne({
-            referralCode,
-            role: "retailer"
-          }).session(session)
-
-          if (!parentRetailer) {
-            throw new Error("Invalid referral code")
-          }
-
-          retailerId = parentRetailer._id
-        }
-
-      } else {
-
-        // ✅ FIXED RETAILER FLOW (FROM TOKEN)
-        const retailer = await User.findOne({
-          _id: new mongoose.Types.ObjectId(retailerUserId),
-          role: "retailer"
+        const parentCustomer = await Customer.findOne({
+          referralCode,
+          retailerId
         }).session(session)
 
-        if (!retailer) {
-          throw new Error("Invalid retailer")
+        if (!parentCustomer) {
+          throw new Error("Invalid referral code")
         }
 
-        retailerId = retailer._id
+        referredById = parentCustomer._id
       }
 
       // ================= GENERATE REFERRAL =================

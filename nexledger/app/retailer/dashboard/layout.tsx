@@ -31,7 +31,7 @@ export default function DashboardLayout({
     { name: "Purchase", href: `${BASE}/purchase`, icon: ShoppingCart },
     { name: "Stock History", href: `${BASE}/stock-history`, icon: BarChart3 },
     { name: "Sales", href: `${BASE}/sales`, icon: ShoppingCart },
-    { name: "Ledger", href: `${BASE}/ledger`, icon: BookOpen },
+    { name: "Report", href: `${BASE}/ledger`, icon: BookOpen },
     { name: "Add Customer", href: `${BASE}/customers/create`, icon: Users},
     { name: "Customers", href: `${BASE}/customers`, icon: Users },
     { name: "Referral Config", href: `${BASE}/referral`, icon: Settings }

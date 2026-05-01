@@ -41,13 +41,13 @@ export default function ProductsPage() {
     category: "",
     brand: "",
     unit: "piece",
-    costPrice: "",
-    sellingPrice: "",
-    taxRate: "",
-    reorderLevel: ""
+
+    costPrice: 0,
+    sellingPrice: 0,
+    taxRate: 0,
+    reorderLevel: 0
   })
 
-  // 🔥 Fetch products
   const fetchProducts = async () => {
     const data = await apiFetch(
       `/api/inventory/items?search=${search}&page=${page}`
@@ -60,42 +60,52 @@ export default function ProductsPage() {
   }
 
   useEffect(() => {
-  fetchProducts()
-}, [search, page])
+    fetchProducts()
+  }, [search, page])
 
-useEffect(() => {
-  loadSettings()
-}, [])
+  useEffect(() => {
+    loadSettings()
+  }, [])
 
-async function loadSettings() {
-  const data = await apiFetch("/api/settings")
+  async function loadSettings() {
+    const data = await apiFetch("/api/settings")
 
-  if (!data) {
-    setCategories(["General"])
-    setUnits(["piece"])
-    return
+    if (!data) {
+      setCategories(["General"])
+      setUnits(["piece"])
+      return
+    }
+
+    const finalCategories =
+      data.categories?.length ? data.categories : ["General"]
+
+    const finalUnits =
+      data.units?.length ? data.units : ["piece"]
+
+    setCategories(finalCategories)
+    setUnits(finalUnits)
+
+    setForm(prev => ({
+      ...prev,
+      unit: finalUnits.includes(prev.unit)
+        ? prev.unit
+        : finalUnits[0]
+    }))
   }
 
-  const finalCategories =
-    data.categories?.length ? data.categories : ["General"]
+  // ✅ FIXED (removed duplicate broken code)
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value, type } = e.target
 
-  const finalUnits =
-    data.units?.length ? data.units : ["piece"]
-
-  setCategories(finalCategories)
-  setUnits(finalUnits)
-
-  // 🔥 ensure valid unit always
-  setForm(prev => ({
-    ...prev,
-    unit: finalUnits.includes(prev.unit)
-      ? prev.unit
-      : finalUnits[0]
-  }))
-}
-
-  const handleChange = (e: any) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
+    setForm(prev => ({
+      ...prev,
+      [name]:
+        type === "number"
+          ? value === "" ? 0 : Number(value)
+          : value
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -116,13 +126,7 @@ async function loadSettings() {
     const data = await apiFetch("/api/inventory/items", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        costPrice: Number(form.costPrice),
-        sellingPrice: Number(form.sellingPrice),
-        taxRate: Number(form.taxRate),
-        reorderLevel: Number(form.reorderLevel)
-      })
+      body: JSON.stringify(form)
     })
 
     if (!data) {
@@ -136,10 +140,11 @@ async function loadSettings() {
         category: "",
         brand: "",
         unit: "piece",
-        costPrice: "",
-        sellingPrice: "",
-        taxRate: "",
-        reorderLevel: ""
+
+        costPrice: 0,
+        sellingPrice: 0,
+        taxRate: 0,
+        reorderLevel: 0
       })
 
       fetchProducts()
@@ -218,7 +223,7 @@ async function loadSettings() {
   <select
     name="category"
     value={form.category}
-    onChange={(e) => setForm({ ...form, category: e.target.value })}
+    onChange={handleChange}
     className="border p-2 rounded w-full"
     required
   >
@@ -345,25 +350,47 @@ if (!exists) {
 
 </div>
 
-          <input name="costPrice" type="number"
+          <input 
+            name="costPrice" 
+            type="number"
+            step="any"
             placeholder="Cost Price"
             className="border rounded-lg p-2"
-            value={form.costPrice} onChange={handleChange} required />
+            value={form.costPrice} 
+            onChange={handleChange} 
+            required 
+            />
 
-          <input name="sellingPrice" type="number"
+          <input
+            name="sellingPrice"
+            type="number"
+            step="any"
             placeholder="Selling Price"
             className="border rounded-lg p-2"
-            value={form.sellingPrice} onChange={handleChange} required />
+            value={form.sellingPrice}
+            onChange={handleChange}
+            required
+          />
 
-          <input name="taxRate" type="number"
-            placeholder="GST (%)"
-            className="border rounded-lg p-2"
-            value={form.taxRate} onChange={handleChange} />
+          <input 
+          name="taxRate" 
+          type="number"
+          step="any"
+          placeholder="GST (%)"
+          className="border rounded-lg p-2"
+          value={form.taxRate} 
+          onChange={handleChange} 
+          />
 
-          <input name="reorderLevel" type="number"
-            placeholder="Reorder Level"
-            className="border rounded-lg p-2"
-            value={form.reorderLevel} onChange={handleChange} />
+          <input 
+          name="reorderLevel" 
+          type="number"
+          step="any"
+          placeholder="Reorder Level"
+          className="border rounded-lg p-2"
+          value={form.reorderLevel} 
+          onChange={handleChange} 
+          />
 
           <button
             type="submit"

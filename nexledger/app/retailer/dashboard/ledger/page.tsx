@@ -88,7 +88,7 @@ const processed = sortedEntries.map(entry => {
 
       {/* 🔥 FILTER TABS */}
       <div className="flex gap-3 flex-wrap">
-        {["all", "sale", "purchase", "customer", "referral"].map(f => (
+        {["all", "sale", "purchase", "referral"].map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}

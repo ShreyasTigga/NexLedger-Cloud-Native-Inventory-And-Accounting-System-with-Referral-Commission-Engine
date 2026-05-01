@@ -39,17 +39,9 @@ export async function POST(req: NextRequest) {
     let customerId: mongoose.Types.ObjectId
 
     if (user.role === "retailer") {
-      if (!user.userId) {
-        return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-      }
-
       retailerId = new mongoose.Types.ObjectId(user.userId)
       customerId = new mongoose.Types.ObjectId(body.customerId)
     } else {
-      if (!user.customerId || !user.retailerId) {
-        return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-      }
-
       retailerId = new mongoose.Types.ObjectId(user.retailerId)
       customerId = new mongoose.Types.ObjectId(user.customerId)
     }
@@ -66,6 +58,9 @@ export async function POST(req: NextRequest) {
       if (!customer) throw new Error("Customer not found")
 
       const processedItems: any[] = []
+      const stockMovements: any[] = []
+      const itemUpdates: any[] = []
+
       let totalAmount = 0
       let totalCGST = 0
       let totalSGST = 0
@@ -74,12 +69,21 @@ export async function POST(req: NextRequest) {
       const config = await ReferralConfig.findOne({
         retailerId,
         isActive: true
-      }).sort({ createdAt: -1 }).session(session)
+      })
+        .sort({ createdAt: -1 })
+        .session(session)
+        .lean() as {
+  _id: mongoose.Types.ObjectId
+  levels: number
+  percentages: number[]
+  distributionPercentage: number
+  commissionType: "fixed" | "percentage"
+  maxCommissionPerSale: number
+} | null
 
-      if (!config) {
-        throw new Error("Referral config not found")
-      }
 
+
+      // ================= PROCESS ITEMS =================
       for (const item of items) {
 
         const product = await Item.findOne({
@@ -87,17 +91,13 @@ export async function POST(req: NextRequest) {
           retailerId
         }).session(session)
 
-        console.log("PRODUCT:", product)
-
         if (!product) throw new Error("Product not found")
 
         if (product.stockQuantity < item.quantity) {
           throw new Error(`Not enough stock for ${product.name}`)
         }
 
-        // STOCK UPDATE
-        product.stockQuantity -= item.quantity
-        await product.save({ session })
+        const newQty = product.stockQuantity - item.quantity
 
         const price = product.sellingPrice
         const taxRate = product.taxRate
@@ -112,14 +112,13 @@ export async function POST(req: NextRequest) {
         const gstAmount = cgstAmount + sgstAmount
         const total = base + gstAmount
 
+        const cost = product.costPrice * item.quantity
+        const revenue = price * item.quantity
+        const profit = revenue - cost
+
         totalAmount += total
         totalCGST += cgstAmount
         totalSGST += sgstAmount
-
-        const cost = product.costPrice * item.quantity
-        const revenue = product.sellingPrice * item.quantity
-
-        const profit = revenue - cost
         totalProfit += profit
 
         processedItems.push({
@@ -137,10 +136,25 @@ export async function POST(req: NextRequest) {
           profit,
           total
         })
+
+        // 📜 Stock movement prep
+        stockMovements.push({
+          itemId: product._id,
+          quantity: item.quantity,
+          price,               // 🔥 important
+          totalAmount: total,  // 🔥 important
+          stockAfter: newQty
+        })
+
+        // 📦 Item update prep
+        itemUpdates.push({
+          itemId: product._id,
+          newQty
+        })
       }
 
       const transactionId = `txn_${Date.now()}`
-      const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+      const invoiceNumber = `INV-${Date.now()}`
 
       const amountPaid = body.amountPaid ?? totalAmount
 
@@ -151,77 +165,77 @@ export async function POST(req: NextRequest) {
           ? "partial"
           : "paid"
 
+      // ================= CREATE INVOICE =================
       const created = await SalesInvoice.create(
         [
           {
             retailerId,
             customerId,
-
             invoiceNumber,
             transactionId,
 
-            referralConfigIdUsed: config._id,
+            referralConfigIdUsed: config?._id,
 
-            referralConfigSnapshot: {
-              levels: config.levels,
-              percentages: config.percentages,
-              commissionType: config.commissionType,
-              maxCommissionPerSale: config.maxCommissionPerSale
-            },
+           referralConfigSnapshot: {
+  levels: config?.levels ?? 0,
+  percentages: config?.percentages ?? [],
+  distributionPercentage: config?.distributionPercentage ?? 100,
+  commissionType: config?.commissionType ?? "percentage",
+  maxCommissionPerSale: config?.maxCommissionPerSale ?? 0
+},
 
             items: processedItems,
 
             subtotal: totalAmount - (totalCGST + totalSGST),
             taxAmount: totalCGST + totalSGST,
-            discount: 0,
-
             totalAmount,
 
             amountPaid,
             paymentStatus,
-
-            profit: totalProfit 
+            profit: totalProfit
           }
         ],
         { session }
       )
 
-      const invoice = created[0] as any
+      const invoice = created[0]
       invoiceId = invoice._id
 
-// ================= STOCK MOVEMENT =================
-for (const item of processedItems) {
+      // ================= STOCK MOVEMENT =================
+      for (const move of stockMovements) {
+        await StockMovement.create(
+          [
+            {
+              retailerId,
+              itemId: move.itemId,
 
-  const product = await Item.findOne({
-    _id: item.itemId,
-    retailerId
-  }).session(session)
+              type: "sale",
+              direction: "out",
 
-  if (!product) throw new Error("Product not found")
+              transactionId,
 
-  const stockAfter = product.stockQuantity // already reduced above
+              quantity: move.quantity,
+              price: move.price,              // 🔥 FIX
+              totalAmount: move.totalAmount,  // 🔥 FIX
 
-  await StockMovement.create(
-    [
-      {
-        retailerId,
-        itemId: item.itemId,
+              referenceId: invoiceId!,
+              referenceModel: "Sale",
 
-        type: "sale",
-        direction: "out",
-
-        quantity: item.quantity,
-        transactionId,
-
-        referenceId: invoiceId!,
-        referenceModel: "Sale",
-
-        stockAfter 
+              stockAfter: move.stockAfter
+            }
+          ],
+          { session }
+        )
       }
-    ],
-    { session }
-  )
-}
+
+      // ================= UPDATE ITEMS =================
+      for (const update of itemUpdates) {
+        await Item.findOneAndUpdate(
+          { _id: update.itemId, retailerId },
+          { stockQuantity: update.newQty },
+          { session }
+        )
+      }
 
       // ================= LEDGER =================
       await LedgerEntry.insertMany(
@@ -235,7 +249,7 @@ for (const item of processedItems) {
             amount: totalAmount,
             referenceId: invoiceId!,
             referenceModel: "Sale",
-            description: "Sale to customer"
+            description: "Sale"
           },
           {
             retailerId,
@@ -246,57 +260,24 @@ for (const item of processedItems) {
             amount: totalAmount - (totalCGST + totalSGST),
             referenceId: invoiceId!,
             referenceModel: "Sale",
-            description: "Revenue from sale"
-          },
-          {
-            retailerId,
-            transactionId,
-            account: "CGST Payable",
-            accountType: "liability",
-            type: "credit",
-            amount: totalCGST,
-            referenceId: invoiceId!,
-            referenceModel: "Sale",
-            description: "CGST collected"
-          },
-          {
-            retailerId,
-            transactionId,
-            account: "SGST Payable",
-            accountType: "liability",
-            type: "credit",
-            amount: totalSGST,
-            referenceId: invoiceId!,
-            referenceModel: "Sale",
-            description: "SGST collected"
+            description: "Revenue"
           }
         ],
         { session }
       )
 
       // ================= REFERRAL =================
-
-      console.log("TOTAL PROFIT:", totalProfit)
-
-      if (totalProfit > 0) {
+      if (totalProfit > 0 && config) {
         await processReferralCommission({
           saleId: invoiceId!,
           customerId,
           profitAmount: totalProfit,
           retailerId,
-          transactionId, 
+          transactionId,
           session: session ?? undefined
         })
       }
-
     })
-
-    if (!invoiceId) {
-      return NextResponse.json(
-        { error: "Invoice creation failed" },
-        { status: 500 }
-      )
-    }
 
     return NextResponse.json({
       message: "Sale completed",
@@ -304,13 +285,10 @@ for (const item of processedItems) {
     })
 
   } catch (err: any) {
-    console.error("SALE ERROR:", err)
-
     return NextResponse.json(
       { error: err.message || "Server error" },
       { status: 500 }
     )
-
   } finally {
     if (session) session.endSession()
   }
