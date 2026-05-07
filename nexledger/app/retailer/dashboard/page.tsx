@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from "react"
 import { apiFetch } from "@/lib/apiFetch"
+import {
+  AlertTriangle,
+  BadgeIndianRupee,
+  Boxes,
+  ChartNoAxesCombined,
+  IndianRupee,
+  ReceiptText
+} from "lucide-react"
 
 import {
   LineChart,
@@ -11,8 +19,6 @@ import {
   Tooltip,
   ResponsiveContainer
 } from "recharts"
-
-// ================= TYPES =================
 
 interface Item {
   _id: string
@@ -41,8 +47,6 @@ interface DashboardData {
   topProducts?: { name: string; totalSold: number }[]
 }
 
-// ================= COMPONENT =================
-
 export default function DashboardPage() {
 
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
@@ -50,8 +54,6 @@ export default function DashboardPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
-
-  // ================= CALCULATIONS =================
 
   const profit =
     (dashboard?.totalRevenue || 0) -
@@ -67,8 +69,6 @@ export default function DashboardPage() {
       style: "currency",
       currency: "INR"
     }).format(amount)
-
-  // ================= FETCH =================
 
   async function fetchDashboard() {
     const data = await apiFetch("/api/retailer/dashboard")
@@ -103,14 +103,20 @@ export default function DashboardPage() {
   }, [page])
 
   if (loading) {
-    return <p className="p-6">Loading dashboard...</p>
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
+        Loading dashboard...
+      </div>
+    )
   }
 
   if (!dashboard) {
-    return <p className="p-6 text-red-500">Failed to load dashboard</p>
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+        Failed to load dashboard
+      </div>
+    )
   }
-
-  // ================= CHART DATA =================
 
   const revenueMap: Record<string, number> = {}
 
@@ -132,149 +138,191 @@ export default function DashboardPage() {
     profit: revenue - avgExpensePerDay
   }))
 
-  // ================= UI =================
+  const statCards = [
+    {
+      label: "Total Revenue",
+      value: formatCurrency(dashboard.totalRevenue),
+      hint: "Sales value",
+      color: "text-emerald-600",
+      icon: IndianRupee
+    },
+    {
+      label: "Total Expense",
+      value: formatCurrency(dashboard.totalExpense),
+      hint: "Purchase and operating cost",
+      color: "text-rose-600",
+      icon: ReceiptText
+    },
+    {
+      label: "Net Profit",
+      value: formatCurrency(profit),
+      hint: `${profitPercentage}% margin`,
+      color: profit >= 0 ? "text-emerald-600" : "text-rose-600",
+      icon: ChartNoAxesCombined
+    },
+    {
+      label: "Low Stock",
+      value: String(dashboard.lowStockItems?.length ?? 0),
+      hint: "Items need attention",
+      color: "text-amber-600",
+      icon: AlertTriangle
+    }
+  ]
 
   return (
-    <div className="max-w-7xl mx-auto space-y-10">
+    <div className="mx-auto max-w-7xl space-y-6">
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-medium text-blue-600">Business overview</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+              Retailer Dashboard
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+              A quick view of revenue, stock alerts, profit, and recent sales activity.
+            </p>
+          </div>
 
-      <div>
-        <h1 className="text-2xl font-semibold">Retailer Dashboard</h1>
-        <p className="text-sm text-gray-500">
-          Overview of your business performance
-        </p>
-      </div>
-
-      {/* ================= STATS ================= */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-
-        <div className="bg-white p-6 rounded-xl shadow">
-          <p className="text-gray-500">Total Revenue</p>
-          <p className="text-2xl font-bold text-green-600">
-            {formatCurrency(dashboard.totalRevenue)}
-          </p>
+          <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            <BadgeIndianRupee size={18} className="text-blue-600" />
+            INR reporting
+          </div>
         </div>
+      </section>
 
-        <div className="bg-white p-6 rounded-xl shadow">
-          <p className="text-gray-500">Total Expense</p>
-          <p className="text-2xl font-bold text-red-500">
-            {formatCurrency(dashboard.totalExpense)}
-          </p>
-        </div>
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {statCards.map((card) => {
+          const Icon = card.icon
 
-        <div className="bg-white p-6 rounded-xl shadow">
-          <p className="text-gray-500">Net Profit</p>
-          <p className={`text-2xl font-bold ${
-            profit >= 0 ? "text-green-600" : "text-red-600"
-          }`}>
-            {formatCurrency(profit)}
-          </p>
-          <p className="text-sm text-gray-500">
-            {profitPercentage}% margin
-          </p>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow">
-          <p className="text-gray-500">Low Stock Items</p>
-          <p className="text-2xl font-bold text-red-500">
-            {dashboard.lowStockItems?.length ?? 0}
-          </p>
-        </div>
-
-      </div>
-
-      {/* ================= LOW STOCK ================= */}
-      <div className="bg-white p-6 rounded-xl shadow">
-        <h2 className="font-semibold mb-3">Low Stock Alerts</h2>
-
-        {(dashboard.lowStockItems?.length ?? 0) === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-6">
-            📦 All products are sufficiently stocked
-          </p>
-        ) : (
-          dashboard.lowStockItems.map((item) => (
-            <div key={item._id} className="flex justify-between text-sm py-1">
-              <span>{item.name}</span>
-              <span className="text-red-500">
-                {item.stockQuantity}
-              </span>
+          return (
+            <div
+              key={card.label}
+              className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm text-slate-500">{card.label}</p>
+                  <p className={`mt-2 text-2xl font-semibold ${card.color}`}>
+                    {card.value}
+                  </p>
+                </div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                  <Icon size={20} />
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">{card.hint}</p>
             </div>
-          ))
-        )}
-      </div>
+          )
+        })}
+      </section>
 
-      {/* ================= CHARTS ================= */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-slate-950">Low Stock Alerts</h2>
+              <p className="mt-1 text-sm text-slate-500">Products below reorder level.</p>
+            </div>
+            <Boxes size={20} className="text-blue-600" />
+          </div>
 
-        {/* Revenue */}
-        <div className="bg-white p-6 rounded-xl shadow">
-          <h2 className="font-semibold mb-4">Revenue Trend</h2>
+          {(dashboard.lowStockItems?.length ?? 0) === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+              All products are sufficiently stocked
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {dashboard.lowStockItems.map((item) => (
+                <div
+                  key={item._id}
+                  className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                >
+                  <span className="font-medium text-slate-700">{item.name}</span>
+                  <span className="rounded-full bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-600">
+                    {item.stockQuantity} left
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="font-semibold text-slate-950">Top Selling Products</h2>
+          <p className="mt-1 text-sm text-slate-500">Best performers from recent sales.</p>
+
+          {!dashboard.topProducts || dashboard.topProducts.length === 0 ? (
+            <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+              No product data available
+            </div>
+          ) : (
+            <div className="mt-4 divide-y divide-slate-100">
+              {dashboard.topProducts.map((item, i) => (
+                <div key={i} className="flex items-center justify-between py-3 text-sm">
+                  <span className="font-medium text-slate-700">{item.name}</span>
+                  <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
+                    {item.totalSold} sold
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="font-semibold text-slate-950">Revenue Trend</h2>
 
           {revenueData.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-6">
-              📊 No sales data available
-            </p>
+            <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+              No sales data available
+            </div>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueData}>
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip formatter={(v: any) => formatCurrency(Number(v || 0))} />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#2563eb"
-                  strokeWidth={3}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <div className="mt-4 h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={revenueData}>
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip formatter={(v: any) => formatCurrency(Number(v || 0))} />
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#2563eb"
+                    strokeWidth={3}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </div>
 
-        {/* Profit */}
-        <div className="bg-white p-6 rounded-xl shadow">
-          <h2 className="font-semibold mb-4">Profit Trend</h2>
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="font-semibold text-slate-950">Profit Trend</h2>
 
           {profitData.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-6">
-              📊 No data available
-            </p>
+            <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+              No data available
+            </div>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={profitData}>
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip formatter={(v: any) => formatCurrency(Number(v || 0))} />
-                <Line
-                  type="monotone"
-                  dataKey="profit"
-                  stroke="#16a34a"
-                  strokeWidth={3}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <div className="mt-4 h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={profitData}>
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip formatter={(v: any) => formatCurrency(Number(v || 0))} />
+                  <Line
+                    type="monotone"
+                    dataKey="profit"
+                    stroke="#16a34a"
+                    strokeWidth={3}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </div>
-
-      </div>
-
-      {/* ================= TOP PRODUCTS ================= */}
-      <div className="bg-white p-6 rounded-xl shadow">
-        <h2 className="font-semibold mb-4">Top Selling Products</h2>
-
-        {!dashboard.topProducts || dashboard.topProducts.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-6">
-            📦 No product data available
-          </p>
-        ) : (
-          dashboard.topProducts.map((item, i) => (
-            <div key={i} className="flex justify-between py-2 border-b text-sm">
-              <span>{item.name}</span>
-              <span className="font-medium">{item.totalSold}</span>
-            </div>
-          ))
-        )}
-      </div>
-
+      </section>
     </div>
   )
 }

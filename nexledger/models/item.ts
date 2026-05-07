@@ -4,15 +4,23 @@ export interface ItemDocument extends Document {
   name: string
   sku: string
   barcode?: string
+
   category: string
   brand?: string
+
   unit: string
+
   costPrice: number
   sellingPrice: number
   taxRate: number
+
   stockQuantity: number
   reorderLevel: number
+
+  isActive: boolean // 🔥 NEW (soft delete / disable)
+
   retailerId: mongoose.Types.ObjectId
+
   createdAt: Date
   updatedAt: Date
 }
@@ -25,14 +33,13 @@ const ItemSchema = new Schema<ItemDocument>(
       trim: true
     },
 
-    // ✅ FIXED: removed global unique
     sku: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+      uppercase: true // 🔥 consistency
     },
 
-    // ✅ barcode NOT unique (real-world correct)
     barcode: {
       type: String,
       trim: true
@@ -55,7 +62,6 @@ const ItemSchema = new Schema<ItemDocument>(
       required: true
     },
 
-    // ✅ Prevent negative values
     costPrice: {
       type: Number,
       required: true,
@@ -78,7 +84,7 @@ const ItemSchema = new Schema<ItemDocument>(
     stockQuantity: {
       type: Number,
       default: 0,
-      min: 0 // ✅ important
+      min: 0
     },
 
     reorderLevel: {
@@ -87,11 +93,17 @@ const ItemSchema = new Schema<ItemDocument>(
       min: 0
     },
 
+    // 🔥 IMPORTANT: disable instead of delete
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+
     retailerId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true // ✅ faster queries
+      index: true
     }
   },
   {
@@ -101,20 +113,23 @@ const ItemSchema = new Schema<ItemDocument>(
 
 /* ================= INDEXES ================= */
 
-// ✅ Multi-tenant SKU uniqueness (MOST IMPORTANT)
+// 🔥 Multi-tenant SKU uniqueness
 ItemSchema.index({ retailerId: 1, sku: 1 }, { unique: true })
 
-// ✅ Fast category filtering
-ItemSchema.index({ category: 1 })
+// 🔥 Fast POS barcode lookup (VERY IMPORTANT)
+ItemSchema.index({ retailerId: 1, barcode: 1 })
 
-// ✅ Text search
-ItemSchema.index({ name: "text" })
-
-// ✅ Faster search inside retailer
+// 🔥 Fast name search inside retailer
 ItemSchema.index({ retailerId: 1, name: 1 })
 
-// ✅ Optional: barcode search
-ItemSchema.index({ barcode: 1 })
+// 🔥 Category filtering
+ItemSchema.index({ retailerId: 1, category: 1 })
+
+// 🔥 Text search
+ItemSchema.index({ name: "text" })
+
+// 🔥 Active items filter
+ItemSchema.index({ retailerId: 1, isActive: 1 })
 
 const Item =
   (models.Item as mongoose.Model<ItemDocument>) ||

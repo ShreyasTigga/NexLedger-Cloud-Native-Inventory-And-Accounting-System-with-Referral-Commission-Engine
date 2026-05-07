@@ -1,65 +1,136 @@
-import Image from "next/image";
+import Link from "next/link"
+import {
+  ArrowRight,
+  BadgeIndianRupee,
+  BookOpenCheck,
+  Boxes,
+  Store,
+  Users
+} from "lucide-react"
+
+const highlights = [
+  {
+    title: "Inventory",
+    text: "Products, purchases, stock history, and low-stock control.",
+    icon: Boxes
+  },
+  {
+    title: "Accounting",
+    text: "Sales, purchase entries, customer wallets, and ledgers.",
+    icon: BookOpenCheck
+  },
+  {
+    title: "Referrals",
+    text: "Customer networks, earnings, payouts, and commission rules.",
+    icon: Users
+  }
+]
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="min-h-screen bg-slate-100 text-slate-950">
+      <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8">
+        <header className="flex items-center justify-between border-b border-slate-200 pb-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white">
+              <Store size={22} />
+            </div>
+            <div>
+              <p className="text-lg font-semibold">NexLedger</p>
+              <p className="text-xs text-slate-500">
+                Inventory, accounting, and referral operations
+              </p>
+            </div>
+          </div>
+
+          <div className="hidden items-center gap-2 sm:flex">
+            <Link
+              href="/customer-auth/login"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              Customer
+            </Link>
+            <Link
+              href="/retailer-auth/login"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              Retailer
+            </Link>
+          </div>
+        </header>
+
+        <div className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="space-y-8">
+            <div className="space-y-5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
+                <BadgeIndianRupee size={16} />
+                Retail operations with referral payouts
+              </div>
+
+              <div className="space-y-4">
+                <h1 className="max-w-3xl text-4xl font-semibold leading-tight text-slate-950 sm:text-5xl">
+                  Run stock, sales, ledgers, and customer commissions from one place.
+                </h1>
+                <p className="max-w-2xl text-base leading-7 text-slate-600">
+                  Choose your workspace to continue. Retailers manage the store;
+                  customers track referrals, earnings, and wallet activity.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Link
+                href="/retailer-auth/login"
+                className="group flex items-center justify-between rounded-lg bg-slate-950 p-5 text-white shadow-sm hover:bg-slate-800"
+              >
+                <div>
+                  <p className="text-sm text-slate-300">Store workspace</p>
+                  <p className="mt-1 text-xl font-semibold">Retailer Login</p>
+                </div>
+                <ArrowRight className="transition group-hover:translate-x-1" />
+              </Link>
+
+              <Link
+                href="/customer-auth/login"
+                className="group flex items-center justify-between rounded-lg border border-slate-200 bg-white p-5 text-slate-950 shadow-sm hover:border-blue-200"
+              >
+                <div>
+                  <p className="text-sm text-slate-500">Referral workspace</p>
+                  <p className="mt-1 text-xl font-semibold">Customer Login</p>
+                </div>
+                <ArrowRight className="text-blue-600 transition group-hover:translate-x-1" />
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid gap-4">
+            {highlights.map((item) => {
+              const Icon = item.icon
+
+              return (
+                <div
+                  key={item.title}
+                  className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                      <Icon size={22} />
+                    </div>
+                    <div>
+                      <h2 className="font-semibold text-slate-950">
+                        {item.title}
+                      </h2>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">
+                        {item.text}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+      </section>
+    </main>
+  )
 }

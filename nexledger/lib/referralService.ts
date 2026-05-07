@@ -1,7 +1,8 @@
 import Customer from "@/models/customer"
 import ReferralEarning from "@/models/referralEarning"
 import LedgerEntry from "@/models/ledgerEntry"
-import WalletTransaction from "@/models/walletTransaction" // ✅ ADD
+import WalletTransaction from "@/models/walletTransaction"
+import { CustomerDocument } from "@/models/customer"
 import mongoose, { ClientSession } from "mongoose"
 import SalesInvoice from "@/models/salesInvoice"
 
@@ -23,7 +24,8 @@ export async function processReferralCommission({
   session
 }: Props) {
   try {
-    const dbSession = session || null
+    const dbSession = session
+    const opts = dbSession ? { session: dbSession } : {}
 
     console.log("REFERRAL START", {
       saleId,
@@ -32,9 +34,7 @@ export async function processReferralCommission({
     })
 
     // ================= GET SALE =================
-    const sale = await SalesInvoice.findById(saleId)
-      .session(dbSession)
-
+    const sale = await SalesInvoice.findById(saleId, null, opts)
     const snapshot = sale?.referralConfigSnapshot
 
     if (!snapshot) {
@@ -43,10 +43,9 @@ export async function processReferralCommission({
     }
 
     // ================= IDEMPOTENCY =================
-    const existing = await ReferralEarning.findOne({
-      saleId,
-      retailerId
-    }).session(dbSession)
+    const existing = await ReferralEarning.exists({
+      saleId
+    })
 
     if (existing) {
       console.log("⚠️ Referral already processed:", saleId)
@@ -62,8 +61,7 @@ export async function processReferralCommission({
     } = snapshot
 
     // ================= CUSTOMER =================
-    const currentUser = await Customer.findById(customerId)
-      .session(dbSession)
+    const currentUser: CustomerDocument | null = await Customer.findById(customerId, null, opts)
 
     if (!currentUser || !currentUser.referredBy) return
 
@@ -78,15 +76,21 @@ export async function processReferralCommission({
 
     if (pool <= 0) return
 
+    const visited = new Set<string>()
+
     // ================= TRAVERSE =================
     for (let level = 0; level < levels; level++) {
 
       if (!parentId) break
 
-      const parent = await Customer.findById(parentId)
-        .session(dbSession)
-
+      const parent: CustomerDocument | null = await Customer.findById(parentId, null, opts)
       if (!parent) break
+
+      const parentIdStr = parent._id.toString()
+
+      // prevent circular loops
+      if (visited.has(parentIdStr)) break
+      visited.add(parentIdStr)
 
       if (parent._id.equals(customerId)) break
 
@@ -104,26 +108,36 @@ export async function processReferralCommission({
         commission = Math.min(commission, maxCommissionPerSale)
       }
 
+      // 🔥 ROUNDING FIX
+      commission = Math.round(commission * 100) / 100
+
       if (commission <= 0) {
         parentId = parent.referredBy ?? undefined
         continue
       }
 
-      // ================= WALLET UPDATE (FIXED) =================
+      // ================= WALLET UPDATE (SAFE) =================
       const updatedCustomer = await Customer.findOneAndUpdate(
-        { _id: parent._id },
+        {
+          _id: parent._id,
+          walletLockVersion: parent.walletLockVersion
+        },
         {
           $inc: {
             walletBalance: commission,
-            totalEarnings: commission
+            totalEarnings: commission,
+            walletLockVersion: 1
           }
         },
-        { new: true, session: dbSession }
+        { new: true, ...opts }
       )
 
-      if (!updatedCustomer) break
+      if (!updatedCustomer) {
+        console.log("⚠️ Wallet update failed (lock mismatch)")
+        break
+      }
 
-      // ================= WALLET TRANSACTION (NEW) =================
+      // ================= WALLET TRANSACTION =================
       await WalletTransaction.create(
         [{
           retailerId,
@@ -131,10 +145,10 @@ export async function processReferralCommission({
           type: "credit",
           source: "referral",
           amount: commission,
-          balanceAfter: updatedCustomer.walletBalance, // ✅ CORRECT
+          balanceAfter: updatedCustomer.walletBalance,
           referenceId: saleId
         }],
-        { session: dbSession }
+        opts
       )
 
       // ================= REFERRAL RECORD =================
@@ -152,7 +166,7 @@ export async function processReferralCommission({
               ? percentages[level] || 0
               : 0
         }],
-        { session: dbSession }
+        opts
       )
 
       // ================= LEDGER =================
@@ -167,7 +181,8 @@ export async function processReferralCommission({
             amount: commission,
             referenceId: saleId,
             referenceModel: "Referral",
-            description: `Level ${level + 1} commission`
+            description: `Level ${level + 1} commission`,
+            source: "referral" // ✅ FIXED
           },
           {
             retailerId,
@@ -178,10 +193,11 @@ export async function processReferralCommission({
             amount: commission,
             referenceId: saleId,
             referenceModel: "Referral",
-            description: "Wallet credit"
+            description: "Wallet credit",
+            source: "referral" // ✅ FIXED
           }
         ],
-        { session: dbSession }
+        opts
       )
 
       parentId = parent.referredBy ?? undefined

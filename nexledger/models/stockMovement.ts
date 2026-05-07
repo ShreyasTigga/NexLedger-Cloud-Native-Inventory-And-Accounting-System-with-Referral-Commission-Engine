@@ -5,12 +5,13 @@ export interface StockMovementDocument extends Document {
   itemId: mongoose.Types.ObjectId
 
   type: "purchase" | "sale" | "adjustment"
-
   direction: "in" | "out"
 
   quantity: number
 
+  // 🔥 pricing snapshot
   price?: number
+  unitCost?: number // 🔥 NEW (important for profit tracking)
   totalAmount?: number
 
   transactionId: string
@@ -59,20 +60,27 @@ const StockMovementSchema = new Schema<StockMovementDocument>(
       min: 1
     },
 
+    // 🔥 PRICE SNAPSHOT (IMPORTANT)
     price: {
-  type: Number,
-  min: 0
-},
+      type: Number,
+      min: 0
+    },
 
-totalAmount: {
-  type: Number,
-  min: 0
-},
+    unitCost: {
+      type: Number,
+      min: 0
+    },
+
+    totalAmount: {
+      type: Number,
+      min: 0
+    },
 
     transactionId: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+      index: true
     },
 
     referenceId: {
@@ -84,6 +92,7 @@ totalAmount: {
       enum: ["Purchase", "Sale", "Adjustment"]
     },
 
+    // 🔥 CRITICAL FOR AUDIT
     stockAfter: {
       type: Number,
       min: 0
@@ -96,20 +105,37 @@ totalAmount: {
   },
   {
     timestamps: { createdAt: true, updatedAt: false },
-    strict: true // 🔥 prevents unwanted fields
+    strict: true
   }
 )
 
 /* ================= INDEXES ================= */
 
-// Fast item history
-StockMovementSchema.index({ retailerId: 1, itemId: 1, createdAt: -1 })
+// 🔥 Item-level stock history
+StockMovementSchema.index({
+  retailerId: 1,
+  itemId: 1,
+  createdAt: -1
+})
 
-// Transaction lookup
-StockMovementSchema.index({ transactionId: 1 })
+// 🔥 Transaction grouping
+StockMovementSchema.index({
+  retailerId: 1,
+  transactionId: 1
+})
 
-// Reference lookup
-StockMovementSchema.index({ referenceId: 1, referenceModel: 1 })
+// 🔥 Reference lookup
+StockMovementSchema.index({
+  referenceId: 1,
+  referenceModel: 1
+})
+
+// 🔥 Type-based analytics
+StockMovementSchema.index({
+  retailerId: 1,
+  type: 1,
+  createdAt: -1
+})
 
 const StockMovement =
   (models.StockMovement as mongoose.Model<StockMovementDocument>) ||

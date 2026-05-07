@@ -11,51 +11,34 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    // AUTH
+    // 🔐 AUTH
     if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    //  ROLE CHECK
     if (user.role !== "customer") {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      )
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     if (!user.customerId) {
-      return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const customerId = user.customerId
 
-    //  CUSTOMER DATA
-    const customer = await Customer.findById(customerId)
+    // ================= CUSTOMER =================
+    const customer = await Customer.findById(customerId).lean()
 
     if (!customer) {
-      return NextResponse.json(
-        { error: "Customer not found" },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 })
     }
 
     // ================= ORDERS =================
 
-    const totalOrders = await SalesInvoice.countDocuments({
-      customerId
-    })
+    const totalOrders = await SalesInvoice.countDocuments({ customerId })
 
     const totalSpentAgg = await SalesInvoice.aggregate([
-      {
-        $match: { customerId }
-      },
+      { $match: { customerId } },
       {
         $group: {
           _id: null,
@@ -69,28 +52,57 @@ export async function GET(req: NextRequest) {
     // ================= REFERRAL =================
 
     const referralAgg = await ReferralEarning.aggregate([
-      {
-        $match: { userId: customerId }
-      },
+      { $match: { customerId } }, // ✅ FIXED
       {
         $group: {
           _id: null,
-          total: { $sum: "$amount" }
+          total: { $sum: "$amount" },
+          count: { $sum: 1 }
         }
       }
     ])
 
     const referralEarnings = referralAgg[0]?.total || 0
+    const totalTransactions = referralAgg[0]?.count || 0
+
+    // 📊 LEVEL STATS (NEW)
+    const levelStats = await ReferralEarning.aggregate([
+      { $match: { customerId } },
+      {
+        $group: {
+          _id: "$level",
+          total: { $sum: "$amount" }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ])
+
+    // 🕒 RECENT ACTIVITY (NEW)
+    const recentEarnings = await ReferralEarning.find({ customerId })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .populate("sourceCustomerId", "name phone")
+      .lean()
 
     // ================= WALLET =================
 
     const walletBalance = customer.walletBalance || 0
 
     return NextResponse.json({
+      // 💰 CORE
+      walletBalance,
+      referralEarnings,
+
+      // 📦 ORDERS
       totalOrders,
       totalSpent,
-      referralEarnings,
-      walletBalance
+
+      // 📊 ANALYTICS
+      totalTransactions,
+      levelStats,
+
+      // 🕒 RECENT
+      recentEarnings
     })
 
   } catch (err: any) {

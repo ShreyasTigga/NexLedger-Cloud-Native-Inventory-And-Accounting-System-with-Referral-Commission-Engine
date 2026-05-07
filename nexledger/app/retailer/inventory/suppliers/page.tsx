@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { apiFetch } from "@/lib/apiFetch"
+import { Mail, Phone, Plus, Truck } from "lucide-react"
 
 interface Supplier {
   _id: string
@@ -55,63 +56,91 @@ export default function SupplierPage() {
 
     setForm({ name: "", phone: "", email: "" })
 
-    // Navigate ONLY on success
-    router.replace("/retailer/dashboard/purchase")
+    router.replace("/retailer/inventory/purchase")
   }
 
+  const fieldClass = "rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+
   return (
-    <div className="max-w-5xl mx-auto space-y-10">
+    <div className="mx-auto max-w-6xl space-y-6">
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+            <Truck size={22} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-blue-600">Inventory partners</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+              Suppliers
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Add supplier contact details before creating purchase invoices.
+            </p>
+          </div>
+        </div>
+      </section>
 
-      <h1 className="text-2xl font-semibold">Suppliers</h1>
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <input
+            name="name"
+            placeholder="Supplier Name"
+            value={form.name}
+            onChange={handleChange}
+            className={fieldClass}
+            required
+          />
 
-      {/* CREATE */}
-      <form onSubmit={handleSubmit} className="grid grid-cols-3 gap-4">
+          <input
+            name="phone"
+            placeholder="Phone"
+            value={form.phone}
+            onChange={handleChange}
+            className={fieldClass}
+          />
 
-        <input
-          name="name"
-          placeholder="Supplier Name"
-          value={form.name}
-          onChange={handleChange}
-          className="border p-2 rounded"
-          required
-        />
+          <input
+            name="email"
+            placeholder="Email"
+            value={form.email}
+            onChange={handleChange}
+            className={fieldClass}
+          />
 
-        <input
-          name="phone"
-          placeholder="Phone"
-          value={form.phone}
-          onChange={handleChange}
-          className="border p-2 rounded"
-        />
+          <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 md:col-span-3">
+            <Plus size={17} />
+            Add Supplier
+          </button>
+        </form>
+      </section>
 
-        <input
-          name="email"
-          placeholder="Email"
-          value={form.email}
-          onChange={handleChange}
-          className="border p-2 rounded"
-        />
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <h2 className="mb-4 font-semibold text-slate-950">Supplier Directory</h2>
 
-        <button className="col-span-3 bg-blue-600 text-white p-2 rounded">
-          Add Supplier
-        </button>
-      </form>
-
-      {/* LIST */}
-      <div className="bg-white p-6 rounded-xl shadow">
         {suppliers.length === 0 ? (
-          <p>No suppliers yet</p>
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+            No suppliers yet
+          </div>
         ) : (
-          suppliers.map((s) => (
-            <div key={s._id} className="border-b py-2">
-              <p className="font-medium">{s.name}</p>
-              <p className="text-sm text-gray-500">{s.phone}</p>
-              <p className="text-sm text-gray-500">{s.email}</p>
-            </div>
-          ))
+          <div className="grid gap-3 md:grid-cols-2">
+            {suppliers.map((s) => (
+              <div key={s._id} className="rounded-lg border border-slate-200 p-4">
+                <p className="font-semibold text-slate-900">{s.name}</p>
+                <div className="mt-3 space-y-2 text-sm text-slate-500">
+                  <p className="flex items-center gap-2">
+                    <Phone size={15} />
+                    {s.phone || "-"}
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Mail size={15} />
+                    {s.email || "-"}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
-      </div>
-
+      </section>
     </div>
   )
 }

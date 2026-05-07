@@ -2,21 +2,21 @@
 
 import { useEffect, useState } from "react"
 import { apiFetch } from "@/lib/apiFetch"
+import { CheckCircle2, Network, Pencil, Plus, Trash2, X } from "lucide-react"
 
 export default function ReferralConfigPage() {
 
   const [configs, setConfigs] = useState<any[]>([])
   const [selectedConfig, setSelectedConfig] = useState<any | null>(null)
 
-  const [name, setName] = useState("") // ✅ FIXED (missing state)
-
+  const [name, setName] = useState("")
   const [levels, setLevels] = useState(1)
   const [percentages, setPercentages] = useState<number[]>([0])
   const [commissionType, setCommissionType] = useState("percentage")
+  const [distribution, setDistribution] = useState(100)
   const [maxCap, setMaxCap] = useState<number | "">("")
   const [loading, setLoading] = useState(false)
 
-  // ================= FETCH =================
   const fetchConfigs = async () => {
     const data = await apiFetch("/api/referral/config")
     if (!data) return
@@ -27,26 +27,26 @@ export default function ReferralConfigPage() {
     fetchConfigs()
   }, [])
 
-  // ================= LOAD INTO FORM =================
   const loadConfig = (cfg: any) => {
-  console.log("LOADED CONFIG:", cfg)
+    setSelectedConfig({
+      ...cfg,
+      _id: String(cfg._id)
+    })
 
-  setSelectedConfig({
-    ...cfg,
-    _id: String(cfg._id) // ✅ normalize ID
-  })
+    setName(cfg.name || "")
+    setLevels(cfg.levels)
+    setPercentages([...cfg.percentages])
+    setCommissionType(cfg.commissionType)
+    setDistribution(cfg.distributionPercentage ?? 100)
+    setMaxCap(cfg.maxCommissionPerSale || "")
+  }
 
-  setName(cfg.name || "")
-  setLevels(cfg.levels)
-  setPercentages(cfg.percentages)
-  setCommissionType(cfg.commissionType)
-  setMaxCap(cfg.maxCommissionPerSale || "")
-}
-
-  // ================= LEVEL CHANGE =================
   const handleLevelChange = (value: number) => {
     setLevels(value)
-    const updated = Array.from({ length: value }, (_, i) => percentages[i] || 0)
+    const updated = Array.from(
+      { length: value },
+      (_, i) => percentages[i] || 0
+    )
     setPercentages(updated)
   }
 
@@ -56,31 +56,33 @@ export default function ReferralConfigPage() {
     setPercentages(updated)
   }
 
-  // ================= CREATE / UPDATE =================
   const saveConfig = async () => {
 
-    console.log("Selected Config:", selectedConfig)
-    console.log("ID being sent:", selectedConfig?._id)
-
     if (!name.trim()) {
-      alert("Config name is required")
+      alert("Config name required")
+      return
+    }
+
+    if (percentages.reduce((a, b) => a + b, 0) > 100) {
+      alert("Total percentage cannot exceed 100")
       return
     }
 
     setLoading(true)
 
     const endpoint = selectedConfig?._id
-  ? `/api/referral/config/${String(selectedConfig._id)}`
-  : "/api/referral/config"
+      ? `/api/referral/config/${selectedConfig._id}`
+      : "/api/referral/config"
 
     const method = selectedConfig?._id ? "PUT" : "POST"
 
     const data = await apiFetch(endpoint, {
       method,
       body: JSON.stringify({
-        name: name.trim(), // ✅ FIXED
+        name: name.trim(),
         levels,
         percentages,
+        distributionPercentage: distribution,
         commissionType,
         maxCommissionPerSale: maxCap || undefined
       })
@@ -92,14 +94,13 @@ export default function ReferralConfigPage() {
       return
     }
 
-    alert(selectedConfig ? "Updated ✅" : "Created ✅")
+    alert(selectedConfig ? "Updated" : "Created")
 
     resetForm()
     await fetchConfigs()
     setLoading(false)
   }
 
-  // ================= DELETE =================
   const deleteConfig = async (id: string) => {
     if (!confirm("Delete this config?")) return
 
@@ -110,7 +111,6 @@ export default function ReferralConfigPage() {
     await fetchConfigs()
   }
 
-  // ================= ACTIVATE =================
   const activateConfig = async (id: string) => {
     await apiFetch("/api/referral/config/activate", {
       method: "POST",
@@ -120,145 +120,192 @@ export default function ReferralConfigPage() {
     await fetchConfigs()
   }
 
-  // ================= RESET =================
   const resetForm = () => {
     setSelectedConfig(null)
-    setName("") // ✅ FIXED
+    setName("")
     setLevels(1)
     setPercentages([0])
     setCommissionType("percentage")
+    setDistribution(100)
     setMaxCap("")
   }
 
+  const inputClass = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="mx-auto max-w-7xl space-y-6">
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+            <Network size={22} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-blue-600">Referral engine</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+              Referral Configurations
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Define commission levels, distribution rules, and active payout configuration.
+            </p>
+          </div>
+        </div>
+      </section>
 
-      <h1 className="text-2xl font-semibold">
-        Referral Configurations
-      </h1>
+      <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <h2 className="mb-4 font-semibold text-slate-950">All Configs</h2>
 
-      {/* ================= CONFIG LIST ================= */}
-      <div className="bg-white p-6 rounded-xl shadow space-y-3">
-        <h2 className="font-semibold mb-2">All Configs</h2>
-
-        {configs.map(cfg => (
-          <div
-            key={cfg._id}
-            className={`border p-4 rounded flex justify-between items-center ${
-              cfg.isActive ? "bg-green-50 border-green-400" : ""
-            }`}
-          >
-            <div>
-              <p className="font-semibold">
-                {cfg.isActive ? "🟢 Active" : "⚪ Inactive"}
-              </p>
-              <p><strong>{cfg.name}</strong></p> {/* ✅ show name */}
-              <p>Levels: {cfg.levels}</p>
-              <p>{cfg.percentages.join(" %, ")} %</p>
+          {configs.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+              No referral configs yet
             </div>
+          ) : (
+            <div className="space-y-3">
+              {configs.map(cfg => (
+                <div
+                  key={cfg._id}
+                  className={`rounded-lg border p-4 ${
+                    cfg.isActive
+                      ? "border-emerald-200 bg-emerald-50"
+                      : "border-slate-200 bg-white"
+                  }`}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
+                        cfg.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
+                      }`}>
+                        {cfg.isActive && <CheckCircle2 size={14} />}
+                        {cfg.isActive ? "Active" : "Inactive"}
+                      </p>
+                      <p className="mt-3 font-semibold text-slate-950">{cfg.name}</p>
+                      <p className="mt-1 text-sm text-slate-600">Levels: {cfg.levels}</p>
+                      <p className="text-sm text-slate-600">{cfg.percentages.join(" %, ")} %</p>
+                    </div>
 
-            <div className="space-x-2">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => loadConfig(cfg)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+                      >
+                        <Pencil size={15} />
+                        Edit
+                      </button>
+
+                      {!cfg.isActive && (
+                        <button
+                          onClick={() => activateConfig(cfg._id)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                        >
+                          <CheckCircle2 size={15} />
+                          Activate
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => deleteConfig(cfg._id)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                      >
+                        <Trash2 size={15} />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="font-semibold text-slate-950">
+              {selectedConfig ? "Edit Config" : "Create Config"}
+            </h2>
+            {selectedConfig && (
               <button
-                onClick={() => loadConfig(cfg)}
-                className="px-3 py-1 bg-gray-200 rounded"
+                onClick={resetForm}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
               >
-                Edit
+                <X size={18} />
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <input
+              placeholder="Config Name"
+              className={inputClass}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+
+            <input
+              type="number"
+              min={1}
+              value={levels}
+              onChange={(e) => handleLevelChange(Number(e.target.value))}
+              className={inputClass}
+            />
+
+            {percentages.map((p, i) => (
+              <input
+                key={i}
+                type="number"
+                placeholder={`Level ${i + 1}`}
+                value={p}
+                onChange={(e) => updatePercentage(i, Number(e.target.value))}
+                className={inputClass}
+              />
+            ))}
+
+            <input
+              type="number"
+              value={distribution}
+              onChange={(e) => setDistribution(Number(e.target.value))}
+              className={inputClass}
+              placeholder="Distribution %"
+            />
+
+            <select
+              value={commissionType}
+              onChange={(e) => setCommissionType(e.target.value)}
+              className={inputClass}
+            >
+              <option value="percentage">Percentage</option>
+              <option value="fixed">Fixed</option>
+            </select>
+
+            <input
+              type="number"
+              placeholder="Max cap"
+              value={maxCap}
+              onChange={(e) =>
+                setMaxCap(e.target.value ? Number(e.target.value) : "")
+              }
+              className={inputClass}
+            />
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                onClick={saveConfig}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                <Plus size={16} />
+                {loading ? "Saving..." : selectedConfig ? "Update" : "Create"}
               </button>
 
-              {!cfg.isActive && (
+              {selectedConfig && (
                 <button
-                  onClick={() => activateConfig(String(cfg._id))}
-                  className="px-3 py-1 bg-green-600 text-white rounded"
+                  onClick={resetForm}
+                  className="rounded-lg bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200"
                 >
-                  Activate
+                  Cancel
                 </button>
               )}
-
-              <button
-                onClick={() => deleteConfig(String(cfg._id))}
-                className="px-3 py-1 bg-red-500 text-white rounded"
-              >
-                Delete
-              </button>
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* ================= FORM ================= */}
-      <div className="bg-white p-6 rounded-xl shadow space-y-4">
-
-        <h2 className="font-semibold">
-          {selectedConfig ? "Edit Config" : "Create New Config"}
-        </h2>
-
-        {/* NAME */}
-        <input
-          placeholder="Config Name (e.g. Default Plan)"
-          className="border p-2 w-full rounded"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-
-        {/* LEVELS */}
-        <input
-          type="number"
-          min={1}
-          value={levels}
-          onChange={(e) => handleLevelChange(Number(e.target.value))}
-          className="border p-2 rounded w-full"
-        />
-
-        {/* PERCENTAGES */}
-        {percentages.map((p, i) => (
-          <input
-            key={i}
-            type="number"
-            placeholder={`Level ${i + 1}`}
-            value={p}
-            onChange={(e) => updatePercentage(i, Number(e.target.value))}
-            className="border p-2 rounded w-full"
-          />
-        ))}
-
-        {/* TYPE */}
-        <select
-          value={commissionType}
-          onChange={(e) => setCommissionType(e.target.value)}
-          className="border p-2 rounded w-full"
-        >
-          <option value="percentage">Percentage</option>
-          <option value="fixed">Fixed</option>
-        </select>
-
-        {/* MAX CAP */}
-        <input
-          type="number"
-          placeholder="Max cap"
-          value={maxCap}
-          onChange={(e) =>
-            setMaxCap(e.target.value ? Number(e.target.value) : "")
-          }
-          className="border p-2 rounded w-full"
-        />
-
-        <div className="flex gap-2">
-          <button
-            onClick={saveConfig}
-            className="bg-blue-600 text-white px-6 py-2 rounded"
-          >
-            {loading ? "Saving..." : selectedConfig ? "Update" : "Create"}
-          </button>
-
-          {selectedConfig && (
-            <button
-              onClick={resetForm}
-              className="bg-gray-400 text-white px-6 py-2 rounded"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
+        </section>
       </div>
     </div>
   )

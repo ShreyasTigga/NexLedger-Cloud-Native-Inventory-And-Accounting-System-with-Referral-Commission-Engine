@@ -9,8 +9,10 @@ export interface LedgerEntryDocument extends Document {
   type: "debit" | "credit"
   amount: number
 
-  // 🔥 GROUPING (CRITICAL)
   transactionId: string
+
+  // 🔥 NEW (VERY IMPORTANT)
+  source: "sale" | "purchase" | "referral" | "wallet" | "adjustment"
 
   // 🔗 OPTIONAL LINKS
   customerId?: mongoose.Types.ObjectId
@@ -19,7 +21,6 @@ export interface LedgerEntryDocument extends Document {
 
   description?: string
 
-  // 🔥 OPTIONAL DEBUG / FAST READ
   balanceAfter?: number
 
   createdAt: Date
@@ -58,12 +59,21 @@ const LedgerEntrySchema = new Schema<LedgerEntryDocument>(
       min: 0
     },
 
+    // 🔥 GROUPING KEY
     transactionId: {
       type: String,
       required: true,
+      index: true
     },
 
-    // 🔗 OPTIONAL LINKS
+    // 🔥 SOURCE TRACKING (CRITICAL FOR DEBUGGING)
+    source: {
+      type: String,
+      enum: ["sale", "purchase", "referral", "wallet", "adjustment"],
+      required: true
+    },
+
+    // 🔗 LINKS
 
     customerId: {
       type: Schema.Types.ObjectId,
@@ -85,7 +95,6 @@ const LedgerEntrySchema = new Schema<LedgerEntryDocument>(
       trim: true
     },
 
-    // 🔥 OPTIONAL (for quick balance checks)
     balanceAfter: {
       type: Number
     }
@@ -97,17 +106,24 @@ const LedgerEntrySchema = new Schema<LedgerEntryDocument>(
 
 /* ================= INDEXES ================= */
 
-// Fast tenant-based queries
+// 🔥 Core queries
 LedgerEntrySchema.index({ retailerId: 1, createdAt: -1 })
 
-// Transaction grouping
-LedgerEntrySchema.index({ transactionId: 1 })
+// 🔥 Transaction grouping
+LedgerEntrySchema.index({ retailerId: 1, transactionId: 1 })
 
-// Customer-specific ledger
-LedgerEntrySchema.index({ retailerId: 1, customerId: 1, createdAt: -1 })
+// 🔥 Customer ledger
+LedgerEntrySchema.index({
+  retailerId: 1,
+  customerId: 1,
+  createdAt: -1
+})
 
-// Account-based queries (reports)
+// 🔥 Account reporting
 LedgerEntrySchema.index({ retailerId: 1, account: 1 })
+
+// 🔥 Source-based analytics
+LedgerEntrySchema.index({ retailerId: 1, source: 1 })
 
 const LedgerEntry =
   (models.LedgerEntry as mongoose.Model<LedgerEntryDocument>) ||

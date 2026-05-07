@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { apiFetch } from "@/lib/apiFetch"
+import { UserPlus } from "lucide-react"
 
 export default function CreateCustomerPage() {
 
@@ -62,9 +63,9 @@ export default function CreateCustomerPage() {
 
       if (!data) return
 
-      router.push("/retailer/dashboard/customers")
+      router.push("/retailer/sales/customers")
 
-      alert("Customer created successfully ✅")
+      alert("Customer created successfully")
 
     } catch (err: any) {
       setError(err.message || "Failed to create customer")
@@ -73,64 +74,58 @@ export default function CreateCustomerPage() {
     }
   }
 
+  const inputClass = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+
   return (
-    <div className="max-w-md mx-auto p-6 space-y-4">
+    <div className="mx-auto max-w-3xl space-y-6">
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+            <UserPlus size={22} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-blue-600">Customer setup</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+              Add Customer
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Create a customer account and optionally attach a referral code.
+            </p>
+          </div>
+        </div>
+      </section>
 
-      <h1 className="text-xl font-semibold">Add Customer</h1>
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        {error && (
+          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </p>
+        )}
 
-      {error && <p className="text-red-500">{error}</p>}
+        <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
+          <input placeholder="Full Name" className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
+          <input placeholder="Phone" className={inputClass} value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <input placeholder="Email" className={inputClass} value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input type="password" placeholder="Password" className={inputClass} value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input
+            placeholder="Referral Code (optional)"
+            className={`${inputClass} uppercase sm:col-span-2`}
+            value={referralCode}
+            onChange={(e) =>
+              setReferralCode(
+                e.target.value.replace(/\s/g, "").toUpperCase()
+              )
+            }
+          />
 
-      <form onSubmit={handleSubmit} className="space-y-3">
-
-        <input
-          placeholder="Full Name"
-          className="border p-2 w-full rounded"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-
-        <input
-          placeholder="Phone"
-          className="border p-2 w-full rounded"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-        />
-
-        <input
-          placeholder="Email"
-          className="border p-2 w-full rounded"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <input
-          type="password"
-          placeholder="Password"
-          className="border p-2 w-full rounded"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-
-        <input
-          placeholder="Referral Code (optional)"
-          className="border p-2 w-full rounded uppercase"
-          value={referralCode}
-          onChange={(e) =>
-            setReferralCode(
-              e.target.value.replace(/\s/g, "").toUpperCase()
-            )
-          }
-        />
-
-        <button
-          className="bg-blue-600 text-white w-full p-2 rounded"
-          disabled={loading || !name || !phone || !password}
-        >
-          {loading ? "Creating..." : "Create Customer"}
-        </button>
-
-      </form>
-
+          <button
+            className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 sm:col-span-2"
+            disabled={loading || !name || !phone || !password}
+          >
+            {loading ? "Creating..." : "Create Customer"}
+          </button>
+        </form>
+      </section>
     </div>
   )
 }

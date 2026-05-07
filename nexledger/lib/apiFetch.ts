@@ -13,10 +13,11 @@ export async function apiFetch(
 
   // 🔐 HANDLE UNAUTHORIZED
   if (res.status === 401) {
-    // Redirect to login (session expired / not logged in)
-    window.location.href = "/auth/login"
-    return null
+  if (typeof window !== "undefined") {
+    window.location.href = "/retailer-auth/login"
   }
+  return null
+}
 
   let data = null
 

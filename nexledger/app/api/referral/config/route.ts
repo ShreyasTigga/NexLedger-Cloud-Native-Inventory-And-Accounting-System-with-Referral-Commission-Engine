@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import ReferralConfig from "@/models/referralConfig"
 import { getUserFromRequest } from "@/lib/getUserFromRequest"
+import mongoose from "mongoose"
 
 // ================= GET CONFIG =================
 export async function GET(req: NextRequest) {
@@ -23,7 +24,8 @@ export async function GET(req: NextRequest) {
     }
 
     const configs = await ReferralConfig.find({
-      retailerId: user.userId
+      retailerId: user.userId,
+      isDeleted: false
     })
       .sort({ createdAt: -1 })
       .lean()
@@ -38,8 +40,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ================= CREATE / UPDATE CONFIG =================
+// ================= CREATE CONFIG =================
 export async function POST(req: NextRequest) {
+  const session = await mongoose.startSession()
+
   try {
     await dbConnect()
 
@@ -68,7 +72,7 @@ export async function POST(req: NextRequest) {
       maxCommissionPerSale
     } = body
 
-    // ================= NAME VALIDATION =================
+    // ================= NAME =================
     if (!name || !name.trim()) {
       return NextResponse.json(
         { error: "Config name is required" },
@@ -76,7 +80,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ================= LEVEL VALIDATION =================
+    const normalizedName = name.trim().toLowerCase()
+
+    // ================= LEVEL =================
     if (!Number.isInteger(levels) || levels <= 0) {
       return NextResponse.json(
         { error: "Levels must be a positive integer" },
@@ -84,11 +90,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ================= PERCENTAGE VALIDATION =================
-    if (
-      !Array.isArray(percentages) ||
-      percentages.length !== levels
-    ) {
+    // ================= PERCENTAGES =================
+    if (!Array.isArray(percentages) || percentages.length !== levels) {
       return NextResponse.json(
         { error: "Invalid levels/percentages" },
         { status: 400 }
@@ -111,6 +114,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (total === 0) {
+      return NextResponse.json(
+        { error: "Total percentage cannot be 0" },
+        { status: 400 }
+      )
+    }
+
     const invalid = percentages.some(
       (p: number) => p < 0 || p > 100
     )
@@ -122,7 +132,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ================= DISTRIBUTION VALIDATION =================
+    // ================= DISTRIBUTION =================
     if (
       distributionPercentage === undefined ||
       distributionPercentage < 0 ||
@@ -134,10 +144,20 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ================= DUPLICATE NAME CHECK =================
+    // ================= FIXED COMMISSION =================
+    if (commissionType === "fixed") {
+      if (!maxCommissionPerSale || maxCommissionPerSale <= 0) {
+        return NextResponse.json(
+          { error: "Max commission required for fixed type" },
+          { status: 400 }
+        )
+      }
+    }
+
+    // ================= DUPLICATE CHECK =================
     const existing = await ReferralConfig.findOne({
       retailerId: user.userId,
-      name: name.trim(),
+      name: normalizedName,
       isDeleted: false
     })
 
@@ -148,27 +168,42 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ================= DEACTIVATE OLD CONFIG =================
+    // ================= TRANSACTION START =================
+    await session.startTransaction()
+
+    // deactivate existing
     await ReferralConfig.updateMany(
       { retailerId: user.userId, isActive: true },
-      { $set: { isActive: false } }
+      { $set: { isActive: false } },
+      { session }
     )
 
-    // ================= CREATE NEW CONFIG =================
-    const config = await ReferralConfig.create({
-      retailerId: user.userId,
-      name: name.trim(),
-      levels,
-      percentages,
-      distributionPercentage: distributionPercentage ?? 100,
-      commissionType: commissionType ?? "percentage",
-      maxCommissionPerSale,
-      isActive: true
-    })
+    // create new config
+    const [config] = await ReferralConfig.create(
+      [
+        {
+          retailerId: user.userId,
+          name: normalizedName,
+          levels,
+          percentages,
+          distributionPercentage,
+          commissionType: commissionType ?? "percentage",
+          maxCommissionPerSale,
+          isActive: true
+        }
+      ],
+      { session }
+    )
+
+    await session.commitTransaction()
+    session.endSession()
 
     return NextResponse.json(config)
 
   } catch (err: any) {
+    await session.abortTransaction()
+    session.endSession()
+
     return NextResponse.json(
       { error: err.message },
       { status: 500 }

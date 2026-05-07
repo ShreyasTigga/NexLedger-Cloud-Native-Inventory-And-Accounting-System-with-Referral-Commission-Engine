@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { apiFetch } from "@/lib/apiFetch"
+import { BookOpen, Filter } from "lucide-react"
 
 interface LedgerEntry {
   _id: string
@@ -23,7 +24,7 @@ export default function LedgerPage() {
       const data = await apiFetch("/api/ledger")
 
       if (!data || !Array.isArray(data.entries)) {
-        setEntries([]) // ✅ SAFE FALLBACKa
+        setEntries([])
         return
       }
 
@@ -35,25 +36,23 @@ export default function LedgerPage() {
 
   const safeEntries = Array.isArray(entries) ? entries : []
 
-  // ================= FILTER =================
   const filteredEntries = safeEntries.filter(e => {
     if (filter === "all") return true
     return (e.referenceModel || "").toLowerCase() === filter
   })
 
-  // ================= COLORS =================
   const getTagStyle = (type?: string) => {
     switch (type) {
       case "Sale":
-        return "bg-green-100 text-green-600"
+        return "bg-emerald-50 text-emerald-700"
       case "Purchase":
-        return "bg-red-100 text-red-600"
+        return "bg-rose-50 text-rose-700"
       case "Customer":
-        return "bg-blue-100 text-blue-600"
+        return "bg-blue-50 text-blue-700"
       case "Referral":
-        return "bg-purple-100 text-purple-600"
+        return "bg-violet-50 text-violet-700"
       default:
-        return "bg-gray-100 text-gray-600"
+        return "bg-slate-100 text-slate-600"
     }
   }
 
@@ -63,121 +62,115 @@ export default function LedgerPage() {
       currency: "INR"
     }).format(amount)
 
-  // ================= RUNNING BALANCE =================
   let balance = 0
 
-const sortedEntries = [...filteredEntries].reverse()
+  const sortedEntries = [...filteredEntries].reverse()
 
-const processed = sortedEntries.map(entry => {
-  if (entry.type === "debit") {
-    balance -= entry.amount
-  } else {
-    balance += entry.amount
-  }
+  const processed = sortedEntries.map(entry => {
+    if (entry.type === "debit") {
+      balance -= entry.amount
+    } else {
+      balance += entry.amount
+    }
 
-  return {
-    ...entry,
-    balance
-  }
-})
+    return {
+      ...entry,
+      balance
+    }
+  })
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+            <BookOpen size={22} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-blue-600">Accounting</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+              Ledger
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Review sale, purchase, referral, and customer ledger movement.
+            </p>
+          </div>
+        </div>
+      </section>
 
-      <h1 className="text-2xl font-semibold">Ledger</h1>
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <Filter size={17} className="text-blue-600" />
+          Filter entries
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {["all", "sale", "purchase", "referral"].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+                filter === f
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {f.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </section>
 
-      {/* 🔥 FILTER TABS */}
-      <div className="flex gap-3 flex-wrap">
-        {["all", "sale", "purchase", "referral"].map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded ${
-              filter === f
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200"
-            }`}
-          >
-            {f.toUpperCase()}
-          </button>
-        ))}
-      </div>
-
-      {/* 🔥 TABLE */}
-      <div className="bg-white rounded-xl shadow overflow-x-auto">
-
-        <table className="min-w-full text-sm">
-
-          <thead>
-            <tr className="border-b text-gray-500 text-xs uppercase">
-              <th className="p-3 text-left">Date</th>
-              <th className="p-3 text-left">Type</th>
-              <th className="p-3 text-left">Account</th>
-              <th className="p-3 text-left">Description</th>
-              <th className="p-3 text-right">Debit</th>
-              <th className="p-3 text-right">Credit</th>
-              <th className="p-3 text-right">Balance</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {processed.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="p-6 text-center text-gray-500">
-                  No entries found
-                </td>
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <table className="min-w-[980px] w-full text-sm">
+            <thead className="bg-slate-50">
+              <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                <th className="p-3 text-left">Date</th>
+                <th className="p-3 text-left">Type</th>
+                <th className="p-3 text-left">Account</th>
+                <th className="p-3 text-left">Description</th>
+                <th className="p-3 text-right">Debit</th>
+                <th className="p-3 text-right">Credit</th>
+                <th className="p-3 text-right">Balance</th>
               </tr>
-            ) : (
-              processed.map(entry => (
-                <tr key={entry._id} className="border-b hover:bg-gray-50">
+            </thead>
 
-                  <td className="p-3">
-                    {new Date(entry.createdAt).toLocaleDateString()}
+            <tbody className="divide-y divide-slate-100">
+              {processed.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-slate-500">
+                    No entries found
                   </td>
-
-                  {/* 🔥 TYPE BADGE */}
-                  <td className="p-3">
-                    <span className={`px-2 py-1 rounded text-xs ${getTagStyle(entry.referenceModel)}`}>
-                      {entry.referenceModel || "Other"}
-                    </span>
-                  </td>
-
-                  <td className="p-3 font-medium">
-                    {entry.account}
-                  </td>
-
-                  <td className="p-3">
-                    {entry.description || "-"}
-                  </td>
-
-                  {/* DEBIT */}
-                  <td className="p-3 text-right text-red-600">
-                    {entry.type === "debit"
-                      ? formatCurrency(entry.amount)
-                      : "-"}
-                  </td>
-
-                  {/* CREDIT */}
-                  <td className="p-3 text-right text-green-600">
-                    {entry.type === "credit"
-                      ? formatCurrency(entry.amount)
-                      : "-"}
-                  </td>
-
-                  {/* BALANCE */}
-                  <td className="p-3 text-right font-semibold">
-                    {formatCurrency(entry.balance)}
-                  </td>
-
                 </tr>
-              ))
-            )}
-          </tbody>
-
-        </table>
-
-      </div>
-
+              ) : (
+                processed.map(entry => (
+                  <tr key={entry._id} className="hover:bg-slate-50">
+                    <td className="p-3 text-slate-600">
+                      {new Date(entry.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="p-3">
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${getTagStyle(entry.referenceModel)}`}>
+                        {entry.referenceModel || "Other"}
+                      </span>
+                    </td>
+                    <td className="p-3 font-medium text-slate-900">{entry.account}</td>
+                    <td className="p-3 text-slate-600">{entry.description || "-"}</td>
+                    <td className="p-3 text-right font-medium text-rose-600">
+                      {entry.type === "debit" ? formatCurrency(entry.amount) : "-"}
+                    </td>
+                    <td className="p-3 text-right font-medium text-emerald-600">
+                      {entry.type === "credit" ? formatCurrency(entry.amount) : "-"}
+                    </td>
+                    <td className="p-3 text-right font-semibold text-slate-950">
+                      {formatCurrency(entry.balance)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   )
 }

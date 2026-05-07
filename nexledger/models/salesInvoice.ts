@@ -1,11 +1,16 @@
 import mongoose, { Schema, Document, models, model } from "mongoose"
 
+/* ================= ITEM ================= */
+
 interface SalesItem {
   itemId: mongoose.Types.ObjectId
   name: string
+
   quantity: number
+
   costPrice: number
   price: number
+
   taxRate: number
 
   cgst: number
@@ -19,43 +24,51 @@ interface SalesItem {
   total: number
 }
 
+/* ================= DOCUMENT ================= */
+
 export interface SalesInvoiceDocument extends Document {
   retailerId: mongoose.Types.ObjectId
-  customerId: mongoose.Types.ObjectId
+  customerId?: mongoose.Types.ObjectId // 🔥 optional (walk-in support)
 
   invoiceNumber: string
-
-  // 🔥 Ledger link
   transactionId: string
 
-  // 🔥 Referral config snapshot
-  referralConfigIdUsed?: mongoose.Types.ObjectId
+  // 🔥 OPTIONAL: who created bill
+  cashierId?: mongoose.Types.ObjectId
 
+  // 🔥 Referral snapshot
+  referralConfigIdUsed?: mongoose.Types.ObjectId
   referralConfigSnapshot?: {
-  levels: number
-  percentages: number[]
-  distributionPercentage: number
-  commissionType: "percentage" | "fixed"
-  maxCommissionPerSale?: number
-}
+    levels: number
+    percentages: number[]
+    distributionPercentage: number
+    commissionType: "percentage" | "fixed"
+    maxCommissionPerSale?: number
+  }
 
   items: SalesItem[]
 
   subtotal: number
   taxAmount: number
   discount: number
-  totalAmount: number
+
+  totalAmount: number // after tax
+  finalAmount: number // after discount 🔥 NEW
 
   profit: number
 
   amountPaid: number
   paymentStatus: "paid" | "partial" | "pending"
 
+  paymentMethod: "cash" | "upi" | "card" // 🔥 NEW
+
   status: "pending" | "paid" | "shipped" | "delivered"
 
   createdAt: Date
   updatedAt: Date
 }
+
+/* ================= SCHEMA ================= */
 
 const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
   {
@@ -69,7 +82,6 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
     customerId: {
       type: Schema.Types.ObjectId,
       ref: "Customer",
-      required: true,
       index: true
     },
 
@@ -79,44 +91,46 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
       trim: true
     },
 
-    // 🔥 LINK TO LEDGER
     transactionId: {
       type: String,
       required: true,
       index: true
     },
 
-    // 🔥 CONFIG SNAPSHOT
+    cashierId: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
+    },
+
+    /* ================= REFERRAL ================= */
+
     referralConfigIdUsed: {
       type: Schema.Types.ObjectId,
       ref: "ReferralConfig"
     },
 
     referralConfigSnapshot: {
-  levels: {
-    type: Number,
-    default: 0
-  },
-  percentages: {
-    type: [Number],
-    default: []
-  },
+      levels: { type: Number, default: 0 },
+      percentages: { type: [Number], default: [] },
 
-  distributionPercentage: {
-    type: Number,
-    default: 100
-  },
-  
-  commissionType: {
-    type: String,
-    enum: ["fixed", "percentage"],
-    default: "percentage"
-  },
-  maxCommissionPerSale: {
-    type: Number,
-    default: 0
-  }
-},
+      distributionPercentage: {
+        type: Number,
+        default: 100
+      },
+
+      commissionType: {
+        type: String,
+        enum: ["fixed", "percentage"],
+        default: "percentage"
+      },
+
+      maxCommissionPerSale: {
+        type: Number,
+        default: 0
+      }
+    },
+
+    /* ================= ITEMS ================= */
 
     items: [
       {
@@ -150,20 +164,32 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
       }
     ],
 
-    // 🔥 FINANCIALS
+    /* ================= FINANCIALS ================= */
+
     subtotal: { type: Number, required: true, min: 0 },
     taxAmount: { type: Number, default: 0, min: 0 },
     discount: { type: Number, default: 0, min: 0 },
 
     totalAmount: { type: Number, required: true, min: 0 },
 
-    // 🔥 PAYMENT
+    finalAmount: { type: Number, required: true, min: 0 }, // 🔥 NEW
+
+    profit: { type: Number, default: 0 }, // 🔥 FIXED (missing earlier)
+
+    /* ================= PAYMENT ================= */
+
     amountPaid: { type: Number, default: 0, min: 0 },
 
     paymentStatus: {
       type: String,
       enum: ["paid", "partial", "pending"],
       default: "paid"
+    },
+
+    paymentMethod: {
+      type: String,
+      enum: ["cash", "upi", "card"],
+      default: "cash"
     },
 
     status: {
@@ -178,13 +204,16 @@ const SalesInvoiceSchema = new Schema<SalesInvoiceDocument>(
 /* ================= INDEXES ================= */
 
 SalesInvoiceSchema.index({ retailerId: 1, createdAt: -1 })
-SalesInvoiceSchema.index({ customerId: 1, createdAt: -1 })
+SalesInvoiceSchema.index({ retailerId: 1, customerId: 1, createdAt: -1 })
 
-// 🔥 UNIQUE PER RETAILER
+// 🔥 UNIQUE INVOICE PER RETAILER
 SalesInvoiceSchema.index(
   { retailerId: 1, invoiceNumber: 1 },
   { unique: true }
 )
+
+// 🔥 Transaction lookup
+SalesInvoiceSchema.index({ retailerId: 1, transactionId: 1 })
 
 const SalesInvoice =
   (models.SalesInvoice as mongoose.Model<SalesInvoiceDocument>) ||

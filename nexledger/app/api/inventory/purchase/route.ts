@@ -204,7 +204,8 @@ export async function POST(req: NextRequest) {
             amount: invoiceTotal,
             referenceId: createdPurchase._id,
             referenceModel: "Purchase",
-            description: "Stock purchase"
+            description: "Stock purchase",
+            source: "purchase"
           },
           {
             retailerId: user.userId,
@@ -215,7 +216,8 @@ export async function POST(req: NextRequest) {
             amount: invoiceTotal,
             referenceId: createdPurchase._id,
             referenceModel: "Purchase",
-            description: "Payment made"
+            description: "Payment made",
+            source: "purchase"
           }
         ],
         { session }

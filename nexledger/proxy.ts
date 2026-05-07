@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import jwt from "jsonwebtoken"
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   const token = req.cookies.get("accessToken")?.value
 
   // ================= PUBLIC ROUTES =================
   const isPublicRoute =
-    pathname.startsWith("/retailer/login") ||
-    pathname.startsWith("/retailer/register") ||
+    pathname.startsWith("/retailer-auth/login") ||
+    pathname.startsWith("/retailer-auth/register") ||
     pathname.startsWith("/customer-auth/login") ||
-    pathname.startsWith("/customer-auth/register") ||
     pathname.startsWith("/api/auth")
 
   // ================= NO TOKEN =================
@@ -25,7 +24,7 @@ export function middleware(req: NextRequest) {
 
       if (pathname.startsWith("/retailer")) {
         return NextResponse.redirect(
-          new URL("/retailer/login", req.url)
+          new URL("/retailer-auth/login", req.url)
         )
       }
     }
@@ -38,16 +37,17 @@ export function middleware(req: NextRequest) {
       role: string
     }
 
-    // ================= BLOCK AUTH PAGES IF LOGGED IN =================
+    // ================= BLOCK AUTH PAGES =================
+
+    // Customer trying auth pages
     if (pathname.startsWith("/customer-auth")) {
       if (decoded.role === "customer") {
         return NextResponse.redirect(
-          new URL("/customer/shop", req.url)
+          new URL("/customer/dashboard", req.url)
         )
       }
-    }
 
-    if (pathname.startsWith("/retailer/login")) {
+      // retailer trying customer auth
       if (decoded.role === "retailer") {
         return NextResponse.redirect(
           new URL("/retailer/dashboard", req.url)
@@ -55,7 +55,23 @@ export function middleware(req: NextRequest) {
       }
     }
 
-    // ================= ROLE-BASED PROTECTION =================
+    // Retailer trying auth pages
+    if (pathname.startsWith("/retailer-auth")) {
+      if (decoded.role === "retailer") {
+        return NextResponse.redirect(
+          new URL("/retailer/dashboard", req.url)
+        )
+      }
+
+      // customer trying retailer auth
+      if (decoded.role === "customer") {
+        return NextResponse.redirect(
+          new URL("/customer/dashboard", req.url)
+        )
+      }
+    }
+
+    // ================= ROLE PROTECTION =================
 
     if (pathname.startsWith("/customer")) {
       if (decoded.role !== "customer") {
@@ -68,7 +84,7 @@ export function middleware(req: NextRequest) {
     if (pathname.startsWith("/retailer")) {
       if (decoded.role !== "retailer") {
         return NextResponse.redirect(
-          new URL("/retailer/login", req.url)
+          new URL("/retailer-auth/login", req.url)
         )
       }
     }
@@ -84,7 +100,7 @@ export function middleware(req: NextRequest) {
     }
 
     return NextResponse.redirect(
-      new URL("/retailer/login", req.url)
+      new URL("/retailer-auth/login", req.url)
     )
   }
 }
@@ -93,6 +109,7 @@ export const config = {
   matcher: [
     "/customer/:path*",
     "/customer-auth/:path*",
-    "/retailer/:path*"
+    "/retailer/:path*",
+    "/retailer-auth/:path*"
   ]
 }

@@ -10,14 +10,21 @@ export interface CustomerDocument extends Document {
 
   referralCode: string
   referredBy?: mongoose.Types.ObjectId
+  referralPath: mongoose.Types.ObjectId[] // 🔥 NEW
 
   level: number
 
   walletBalance: number
-  totalEarnings: number
-  walletUpdatedAt?: Date 
+  walletLockVersion: number
 
-  isActive: boolean 
+  totalEarnings: number
+  walletUpdatedAt?: Date
+
+  lastTransactionAt?: Date // 🔥 NEW
+
+  notes?: string // 🔥 NEW
+
+  isActive: boolean
 
   createdAt: Date
   updatedAt: Date
@@ -28,8 +35,7 @@ const CustomerSchema = new Schema<CustomerDocument>(
     userId: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
-      unique: true
+      required: true
     },
 
     retailerId: {
@@ -59,7 +65,9 @@ const CustomerSchema = new Schema<CustomerDocument>(
 
     referralCode: {
       type: String,
-      required: true
+      required: true,
+      uppercase: true, // 🔥 ensures consistency
+      trim: true
     },
 
     referredBy: {
@@ -67,6 +75,14 @@ const CustomerSchema = new Schema<CustomerDocument>(
       ref: "Customer",
       index: true
     },
+
+    // 🔥 FULL REFERRAL CHAIN (FAST TREE)
+    referralPath: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Customer"
+      }
+    ],
 
     level: {
       type: Number,
@@ -79,6 +95,11 @@ const CustomerSchema = new Schema<CustomerDocument>(
       min: 0
     },
 
+    walletLockVersion: {
+      type: Number,
+      default: 0
+    },
+
     totalEarnings: {
       type: Number,
       default: 0
@@ -86,6 +107,17 @@ const CustomerSchema = new Schema<CustomerDocument>(
 
     walletUpdatedAt: {
       type: Date
+    },
+
+    // 🔥 ACTIVITY TRACKING
+    lastTransactionAt: {
+      type: Date
+    },
+
+    // 🔥 OPTIONAL NOTES
+    notes: {
+      type: String,
+      trim: true
     },
 
     isActive: {
@@ -96,14 +128,37 @@ const CustomerSchema = new Schema<CustomerDocument>(
   { timestamps: true }
 )
 
-// INDEXES
+/* ================= INDEXES ================= */
+
+// 🔥 Core queries
 CustomerSchema.index({ retailerId: 1, level: 1 })
 CustomerSchema.index({ retailerId: 1, walletBalance: -1 })
-CustomerSchema.index({ retailerId: 1, referredBy: 1 }) // 🔥 NEW
+CustomerSchema.index({ retailerId: 1, referredBy: 1 })
+
+// 🔥 Multi-tenant uniqueness
+CustomerSchema.index(
+  { retailerId: 1, userId: 1 },
+  { unique: true }
+)
+
 CustomerSchema.index(
   { retailerId: 1, referralCode: 1 },
   { unique: true }
 )
+
+CustomerSchema.index(
+  { retailerId: 1, phone: 1 },
+  { unique: true }
+)
+
+// 🔥 Optional but useful
+CustomerSchema.index(
+  { retailerId: 1, email: 1 },
+  { sparse: true }
+)
+
+// 🔥 Referral traversal optimization
+CustomerSchema.index({ retailerId: 1, referralPath: 1 })
 
 const Customer =
   (models.Customer as mongoose.Model<CustomerDocument>) ||

@@ -40,6 +40,11 @@ export async function POST(req: NextRequest) {
 
     if (user.role === "retailer") {
       retailerId = new mongoose.Types.ObjectId(user.userId)
+
+      if (!mongoose.Types.ObjectId.isValid(body.customerId)) {
+        throw new Error("Invalid customerId")
+      }
+
       customerId = new mongoose.Types.ObjectId(body.customerId)
     } else {
       retailerId = new mongoose.Types.ObjectId(user.retailerId)
@@ -68,27 +73,20 @@ export async function POST(req: NextRequest) {
 
       const config = await ReferralConfig.findOne({
         retailerId,
-        isActive: true
+        isActive: true,
+        isDeleted: false
       })
         .sort({ createdAt: -1 })
         .session(session)
-        .lean() as {
-  _id: mongoose.Types.ObjectId
-  levels: number
-  percentages: number[]
-  distributionPercentage: number
-  commissionType: "fixed" | "percentage"
-  maxCommissionPerSale: number
-} | null
-
-
+        .lean()
 
       // ================= PROCESS ITEMS =================
       for (const item of items) {
 
         const product = await Item.findOne({
-          _id: item.productId,
-          retailerId
+          _id: item.itemId, // ✅ FIXED
+          retailerId,
+          isActive: true // ✅ FIXED
         }).session(session)
 
         if (!product) throw new Error("Product not found")
@@ -110,7 +108,8 @@ export async function POST(req: NextRequest) {
         const cgstAmount = (base * cgst) / 100
         const sgstAmount = (base * sgst) / 100
         const gstAmount = cgstAmount + sgstAmount
-        const total = base + gstAmount
+
+        const total = Math.round((base + gstAmount) * 100) / 100 // ✅ ROUNDING
 
         const cost = product.costPrice * item.quantity
         const revenue = price * item.quantity
@@ -137,33 +136,38 @@ export async function POST(req: NextRequest) {
           total
         })
 
-        // 📜 Stock movement prep
         stockMovements.push({
           itemId: product._id,
           quantity: item.quantity,
-          price,               // 🔥 important
-          totalAmount: total,  // 🔥 important
+          price,
+          totalAmount: total,
           stockAfter: newQty
         })
 
-        // 📦 Item update prep
         itemUpdates.push({
           itemId: product._id,
           newQty
         })
       }
 
-      const transactionId = `txn_${Date.now()}`
+      const transactionId = new mongoose.Types.ObjectId().toString() // ✅ FIXED
       const invoiceNumber = `INV-${Date.now()}`
 
       const amountPaid = body.amountPaid ?? totalAmount
 
+      const discount = body.discount ?? 0
+      const finalAmount = totalAmount - discount
+
+      if (finalAmount < 0) {
+        throw new Error("Final amount cannot be negative")
+      }
+
       const paymentStatus =
-        amountPaid === 0
-          ? "pending"
-          : amountPaid < totalAmount
-          ? "partial"
-          : "paid"
+      amountPaid === 0
+        ? "pending"
+        : amountPaid < finalAmount
+        ? "partial"
+        : "paid"
 
       // ================= CREATE INVOICE =================
       const created = await SalesInvoice.create(
@@ -176,23 +180,26 @@ export async function POST(req: NextRequest) {
 
             referralConfigIdUsed: config?._id,
 
-           referralConfigSnapshot: {
-  levels: config?.levels ?? 0,
-  percentages: config?.percentages ?? [],
-  distributionPercentage: config?.distributionPercentage ?? 100,
-  commissionType: config?.commissionType ?? "percentage",
-  maxCommissionPerSale: config?.maxCommissionPerSale ?? 0
-},
+            referralConfigSnapshot: {
+              levels: config?.levels ?? 0,
+              percentages: config?.percentages ?? [],
+              distributionPercentage: config?.distributionPercentage ?? 100,
+              commissionType: config?.commissionType ?? "percentage",
+              maxCommissionPerSale: config?.maxCommissionPerSale ?? 0
+            },
 
             items: processedItems,
 
             subtotal: totalAmount - (totalCGST + totalSGST),
             taxAmount: totalCGST + totalSGST,
+            discount,
             totalAmount,
-
+            finalAmount,
             amountPaid,
             paymentStatus,
-            profit: totalProfit
+            paymentMethod: body.paymentMethod || "cash",
+            profit: totalProfit,
+            status: paymentStatus === "paid" ? "paid" : "pending"
           }
         ],
         { session }
@@ -208,19 +215,14 @@ export async function POST(req: NextRequest) {
             {
               retailerId,
               itemId: move.itemId,
-
               type: "sale",
               direction: "out",
-
               transactionId,
-
               quantity: move.quantity,
-              price: move.price,              // 🔥 FIX
-              totalAmount: move.totalAmount,  // 🔥 FIX
-
+              price: move.price,
+              totalAmount: move.totalAmount,
               referenceId: invoiceId!,
               referenceModel: "Sale",
-
               stockAfter: move.stockAfter
             }
           ],
@@ -246,10 +248,11 @@ export async function POST(req: NextRequest) {
             account: "Accounts Receivable",
             accountType: "asset",
             type: "debit",
-            amount: totalAmount,
+            amount: finalAmount,
             referenceId: invoiceId!,
             referenceModel: "Sale",
-            description: "Sale"
+            description: "Sale",
+            source: "sale" 
           },
           {
             retailerId,
@@ -260,14 +263,41 @@ export async function POST(req: NextRequest) {
             amount: totalAmount - (totalCGST + totalSGST),
             referenceId: invoiceId!,
             referenceModel: "Sale",
-            description: "Revenue"
-          }
+            description: "Revenue",
+            source: "sale" 
+          },
+          // 3️⃣ CGST Payable
+        {
+          retailerId,
+          transactionId,
+          account: "Output CGST",
+          accountType: "liability",
+          type: "credit",
+          amount: totalCGST,
+          referenceId: invoiceId!,
+          referenceModel: "Sale",
+          description: "CGST on Sale",
+          source: "sale"
+        },
+        // 4️⃣ SGST Payable
+        {
+          retailerId,
+          transactionId,
+          account: "Output SGST",
+          accountType: "liability",
+          type: "credit",
+          amount: totalSGST,
+          referenceId: invoiceId!,
+          referenceModel: "Sale",
+          description: "SGST on Sale",
+          source: "sale"
+        }
         ],
         { session }
       )
 
       // ================= REFERRAL =================
-      if (totalProfit > 0 && config) {
+      if (totalProfit > 0 && config && paymentStatus === "paid") {
         await processReferralCommission({
           saleId: invoiceId!,
           customerId,
@@ -294,6 +324,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
+
 // ================= GET =================
 export async function GET(req: NextRequest) {
   try {
@@ -301,22 +332,11 @@ export async function GET(req: NextRequest) {
 
     const user = await getUserFromRequest(req)
 
-    // 🔐 AUTH
-    if (!user) {
+    if (!user || user.role !== "retailer" || !user.userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // 🔐 ROLE
-    if (user.role !== "retailer") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
-    // 🔐 TOKEN SAFETY
-    if (!user.userId) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    }
-
-    const retailerId = user.userId
+    const retailerId = new mongoose.Types.ObjectId(user.userId)
 
     const invoices = await SalesInvoice.find({ retailerId })
       .sort({ createdAt: -1 })
@@ -325,11 +345,11 @@ export async function GET(req: NextRequest) {
       .lean()
 
     const revenueData = await SalesInvoice.aggregate([
-      { $match: { retailerId } },
+      { $match: { retailerId } }, 
       {
         $group: {
           _id: null,
-          totalRevenue: { $sum: "$totalAmount" },
+          totalRevenue: { $sum: "$finalAmount" },
           totalProfit: { $sum: "$profit" }
         }
       }
