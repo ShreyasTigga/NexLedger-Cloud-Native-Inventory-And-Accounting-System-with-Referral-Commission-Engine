@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Store",
-  description: "Marketplace",
+  title: "NexLedger",
+  description: "Modern Retail ERP & Referral Platform",
 }
 
 export default function RootLayout({
